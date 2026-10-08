@@ -1,0 +1,193 @@
+const DEFAULT_CATEGORIES = ["EL", "CD", "TC"];
+
+const CATEGORY_META = {
+  EL: {
+    name: "Eléctrica",
+    code: "EL",
+    badgeClass: "bg-amber-100 text-amber-800 border-amber-300",
+    dotClass: "bg-amber-500",
+  },
+  CD: {
+    name: "Corrientes Débiles",
+    code: "CD",
+    badgeClass: "bg-purple-100 text-purple-800 border-purple-300",
+    dotClass: "bg-purple-500",
+  },
+  TC: {
+    name: "Telecomunicaciones",
+    code: "TC",
+    badgeClass: "bg-blue-100 text-blue-800 border-blue-300",
+    dotClass: "bg-blue-500",
+  },
+};
+
+const RAW_ACTIVITIES = [
+  'EL avance de loza',
+  'EL elevación de muro y avance de loza',
+  'EL instalación de tubería',
+  'EL instalación de MT',
+  'EL instalación de EMT',
+  'EL Canalización de EMT alumbrado',
+  'EL Montaje de EMT alumbrado',
+  'EL Canalización de EMT enchufe',
+  'EL Montaje de EMT enchufe',
+  'EL Canalización de EMT telecomunicaciones',
+  'EL Montaje de EMT telecomunicaciones',
+  'EL Canalización de EMT CCDD',
+  'EL Montaje de EMT CCDD',
+  'EL instalación de Cinta LED',
+  'El instalación de Cinta LED',
+  'EL alambrado (iluminación)',
+  'EL alambrado (enchufe subterráneos)',
+  'EL montaje de bpc y epc',
+  'EL galvanizado de corrientes débiles',
+  'EL montaje iluminario',
+  'EL montaje de enchufes',
+  'EL alambrado de enchufe bombero',
+  'EL tabiquería Bodegas',
+  'EL instalación de interruptores',
+  'EL instalación de soquete',
+  'EL instalación caja empalme departamento',
+  'EL instalación de sensores de movimiento',
+  'EL instalación de alimentadores y subalimentadores',
+  'EL montaje de tableros',
+  'EL montaje de tableros CCDD',
+  'EL revisión funcionalidad circuito',
+  'EL instalación de bandejas',
+  'EL conexión de circuito tablero eléctrico',
+  'EL instalación de iluminarias y señaléticas',
+  'EL montaje de tubería de telecomunicaciones',
+  'EL montaje de bandeja vertical eléctrica',
+  'EL montaje de bandeja vertical telecomunicaciones',
+  'EL montaje de bandeja vertical ccdd',
+  'EL instalación de focos de terraza',
+  'EL instalación de focos',
+  'EL instalación de tableros',
+  'EL alimentación de departamentos',
+  'EL tablero de emergencia',
+  'EL enchufe de departamento',
+  'EL montaje de vertical ducto',
+  'EL montaje de vertical barra',
+  'EL instalación de plugin',
+  'EL alambrado de pasillo',
+  'EL tabiquería de pasillo',
+  'EL alambrado de espacios comunes',
+  'EL alambrado caja escala',
+  'EL alambrado fozo sensor',
+  'EL instalación de iluminaria foso sensor',
+  'EL instalación de iluminaria foso',
+  'EL galvanizado ccdd',
+  'EL pruebas de funcionamiento iluminación y enchufe',
+  'EL conexión de tableros de alimentación departamentos',
+  'EL aterrizaje de verticales',
+  'EL peinado de alimentadores en bandeja',
+  'EL montaje cajas PAU telecomunicaciones',
+  'EL instalación de caja barra de TP y TS',
+  'EL instalación Caja ENEL',
+  'EL limpieza de caja',
+  'EL Alambrado alimentador departamento',
+  'EL Vertical servicio común(escalerilla)',
+  'EL Vertical de compañia electrica(ducto de barra)',
+  'EL Rectificación de piso cielo',
+  'EL Tabiquería departamento',
+  'EL alambrado iluminación',
+  'EL alambrado enchufes',
+  'EL instalación tablero departamento',
+  'EL conexionado de tablero eléctrico',
+  'EL galvanizado de departamento',
+  'EL instalación de artefactos',
+  'EL estañado de encimera',
+  'EL prueba funcionamiento departamento',
+  'EL entrega departamento',
+  'EL instalación de luminaria departamento',
+  'EL alambrado vertical bomberos',
+  'EL instalación enchufe bomberos',
+  'EL peinado alimentadores vertical',
+  'EL instalación de alimentadores vertical',
+  'EL instalación luminaria exterior',
+  'EL instalación ductos soterrado jardines',
+  'EL instalación de poste para transformador',
+  'EL instalación de transformador y conexionado',
+  'EL instalación tablero TCL',
+  'EL instalación de cableado y peinado',
+  'EL instalación de KNX',
+  'EL instalación cableado de KNX',
+  'EL instalación tablero mímico',
+  'EL instalación cableado mímico',
+  'EL aterrizaje de bandeja',
+  'EL instalación tapa bandeja',
+  'TC Cableado coaxial alámbrica',
+  'TC Cableado coaxial inalámbrica',
+  'TC Cableado coaxial fibra óptica',
+  'TC cableado verticales',
+  'TC Montaje en SOTI',
+  'TC Montaje en SOTS',
+  'TC Montaje pasivos vertical',
+  'TC Conexionado interior deptos.',
+  'TC Fusiones interior deptos.',
+  'TC Fusiones en cajas de distribución',
+  'TC Fusiones en SOTI',
+  'TC Rotulado',
+  'TC Ecualización de equipos vertical',
+  'TC Mediciones redes',
+  'CD Cableado sistema de incendios',
+  'CD Cableado sistema de intrusión',
+  'CD Cableado CCTV',
+  'CD Cableado citofonía',
+  'CD Cableado sistema accesos',
+  'CD instalación CCTV',
+  'CD instalación alarmas interior deptos.',
+  'CD instalación citófonos interior deptos.',
+  'CD montaje de artefactos incendios',
+  'CD Montaje artefactos Accesos',
+  'CD Montaje mesón conserjería',
+  'CD Montaje centrales',
+  'CD Instalación control de accesos Vehicular',
+  'CD funcionalidad citofonía',
+  'CD funcionalidad incendios',
+  'CD funcionalidad CCTV',
+  'CD funcionalidad Accesos',
+  'CD funcionalidad acceso vehicular',
+  'CD programación centrales',
+  'CD cerco eléctrico',
+];
+
+function detectCategory(name) {
+  const trimmed = String(name || "").trim();
+  const upper = trimmed.toUpperCase();
+  if (upper.startsWith("EL ") || upper.startsWith("EL-") || upper.startsWith("EL:")) return "EL";
+  if (upper.startsWith("CD ") || upper.startsWith("CD-") || upper.startsWith("CD:")) return "CD";
+  if (upper.startsWith("TC ") || upper.startsWith("TC-") || upper.startsWith("TC:")) return "TC";
+  return "EL";
+}
+
+// Genera lista única normalizada
+const seen = new Set();
+const DEFAULT_ACTIVITIES = [];
+
+for (const raw of RAW_ACTIVITIES) {
+  const trimmed = raw.trim();
+  if (!trimmed) continue;
+  const category = detectCategory(trimmed);
+  // Normalizar el prefijo a mayúsculas si comienza con 'El '
+  let normalized = trimmed;
+  if (normalized.startsWith("El ")) {
+    normalized = "EL " + normalized.slice(3);
+  }
+  const key = normalized.toLowerCase();
+  if (!seen.has(key)) {
+    seen.add(key);
+    DEFAULT_ACTIVITIES.push({
+      category,
+      name: normalized,
+      active: 1,
+    });
+  }
+}
+
+module.exports = {
+  DEFAULT_CATEGORIES,
+  CATEGORY_META,
+  DEFAULT_ACTIVITIES,
+  detectCategory,
+};
