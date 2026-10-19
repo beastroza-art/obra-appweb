@@ -531,9 +531,9 @@ export default function Users() {
                             )}
                           </div>
                         ) : (
-                          <span className="text-muted-foreground">
+                          <Badge variant="outline" className="text-xs bg-slate-100 text-slate-500 border-slate-200">
                             Sin acceso
-                          </span>
+                          </Badge>
                         )}
                       </TableCell>
                       <TableCell>
@@ -672,7 +672,7 @@ export default function Users() {
 
             {form.role !== "admin" && (
               <div>
-                <Label className="text-xs">Obras Permitidas *</Label>
+                <Label className="text-xs">Obras Permitidas (Opcional)</Label>
                 <MultiSelect
                   options={projects.map((p) => ({
                     label: p.name,
@@ -686,12 +686,12 @@ export default function Users() {
                   onChange={(selected) =>
                     setForm({ ...form, allowed_projects: selected })
                   }
-                  placeholder="Seleccionar obras"
+                  placeholder="Seleccionar obras (opcional)"
                 />
                 {(!Array.isArray(form.allowed_projects) ||
                   form.allowed_projects.length === 0) && (
-                  <p className="text-xs text-amber-600 mt-1">
-                    ⚠️ Debes seleccionar al menos una obra
+                  <p className="text-xs text-muted-foreground mt-1">
+                    ℹ️ Sin obras asignadas: este usuario quedará con estado <strong>"Sin acceso"</strong> hasta que se le asigne una obra.
                   </p>
                 )}
               </div>
@@ -721,9 +721,6 @@ export default function Users() {
                 !form.full_name ||
                 !form.email ||
                 (!editUser && !form.password) ||
-                (form.role !== "admin" &&
-                  (!Array.isArray(form.allowed_projects) ||
-                    form.allowed_projects.length === 0)) ||
                 isPending
               }
             >

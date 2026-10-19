@@ -298,6 +298,9 @@ router.post("/", (req, res) => {
     tower_count,
     floors,
     departments,
+    subterraneos,
+    exteriores,
+    areas_comunes,
     vertical_el_count,
     vertical_tc_count,
     vertical_cd_count,
@@ -355,11 +358,14 @@ router.post("/", (req, res) => {
         tower_count,
         floors,
         departments,
+        subterraneos,
+        exteriores,
+        areas_comunes,
         vertical_el_count,
         vertical_tc_count,
         vertical_cd_count
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     db.run(
@@ -377,6 +383,9 @@ router.post("/", (req, res) => {
         towerCount,
         JSON.stringify(floors || []),
         JSON.stringify(departments || {}),
+        JSON.stringify(subterraneos || []),
+        JSON.stringify(exteriores || []),
+        JSON.stringify(areas_comunes || []),
         Number(vertical_el_count || 0),
         Number(vertical_tc_count || 0),
         Number(vertical_cd_count || 0),
@@ -400,6 +409,9 @@ router.post("/", (req, res) => {
               tower_count: towerCount,
               floors: floors || [],
               departments: departments || {},
+              subterraneos: subterraneos || [],
+              exteriores: exteriores || [],
+              areas_comunes: areas_comunes || [],
               vertical_el_count: Number(vertical_el_count || 0),
               vertical_tc_count: Number(vertical_tc_count || 0),
               vertical_cd_count: Number(vertical_cd_count || 0),
@@ -428,6 +440,9 @@ router.put("/:id", (req, res) => {
     tower_count,
     floors,
     departments,
+    subterraneos,
+    exteriores,
+    areas_comunes,
     vertical_el_count,
     vertical_tc_count,
     vertical_cd_count,
@@ -493,6 +508,9 @@ router.put("/:id", (req, res) => {
           tower_count = ?,
           floors = ?,
           departments = ?,
+          subterraneos = ?,
+          exteriores = ?,
+          areas_comunes = ?,
           vertical_el_count = ?,
           vertical_tc_count = ?,
           vertical_cd_count = ?
@@ -515,6 +533,9 @@ router.put("/:id", (req, res) => {
             towerCount,
             JSON.stringify(floors || []),
             JSON.stringify(departments || {}),
+            JSON.stringify(subterraneos || []),
+            JSON.stringify(exteriores || []),
+            JSON.stringify(areas_comunes || []),
             Number(vertical_el_count || 0),
             Number(vertical_tc_count || 0),
             Number(vertical_cd_count || 0),

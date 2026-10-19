@@ -48,6 +48,9 @@ function initDatabase() {
         ["tower_count", "ALTER TABLE projects ADD COLUMN tower_count INTEGER DEFAULT 1"],
         ["floors", "ALTER TABLE projects ADD COLUMN floors TEXT DEFAULT '[]'"],
         ["departments", "ALTER TABLE projects ADD COLUMN departments TEXT DEFAULT '{}'"],
+        ["subterraneos", "ALTER TABLE projects ADD COLUMN subterraneos TEXT DEFAULT '[]'"],
+        ["exteriores", "ALTER TABLE projects ADD COLUMN exteriores TEXT DEFAULT '[]'"],
+        ["areas_comunes", "ALTER TABLE projects ADD COLUMN areas_comunes TEXT DEFAULT '[]'"],
         ["vertical_el_count", "ALTER TABLE projects ADD COLUMN vertical_el_count INTEGER DEFAULT 0"],
         ["vertical_tc_count", "ALTER TABLE projects ADD COLUMN vertical_tc_count INTEGER DEFAULT 0"],
         ["vertical_cd_count", "ALTER TABLE projects ADD COLUMN vertical_cd_count INTEGER DEFAULT 0"],
@@ -103,6 +106,9 @@ function initDatabase() {
         ["scope_type", "ALTER TABLE master_items ADD COLUMN scope_type TEXT DEFAULT 'piso'"],
         ["departments", "ALTER TABLE master_items ADD COLUMN departments TEXT DEFAULT ''"],
         ["parent_id", "ALTER TABLE master_items ADD COLUMN parent_id INTEGER DEFAULT NULL"],
+        ["zone_type", "ALTER TABLE master_items ADD COLUMN zone_type TEXT DEFAULT 'torre'"],
+        ["measurement_type", "ALTER TABLE master_items ADD COLUMN measurement_type TEXT DEFAULT 'cantidad'"],
+        ["stage_reached", "ALTER TABLE master_items ADD COLUMN stage_reached TEXT DEFAULT ''"],
       ];
 
       migrations.forEach(([columnName, sql]) => {
@@ -214,6 +220,11 @@ function initDatabase() {
       const columnNames = columns.map((column) => column.name);
       const migrations = [
         ["is_zero_progress", "ALTER TABLE daily_logs ADD COLUMN is_zero_progress INTEGER DEFAULT 0"],
+        ["log_type", "ALTER TABLE daily_logs ADD COLUMN log_type TEXT DEFAULT 'avance'"],
+        ["cause_category", "ALTER TABLE daily_logs ADD COLUMN cause_category TEXT DEFAULT ''"],
+        ["hours_lost", "ALTER TABLE daily_logs ADD COLUMN hours_lost REAL DEFAULT 0"],
+        ["stage_reached", "ALTER TABLE daily_logs ADD COLUMN stage_reached TEXT DEFAULT ''"],
+        ["recinto_libre", "ALTER TABLE daily_logs ADD COLUMN recinto_libre TEXT DEFAULT ''"],
       ];
 
       migrations.forEach(([columnName, sql]) => {
@@ -242,7 +253,18 @@ function initDatabase() {
       FOREIGN KEY(daily_log_id) REFERENCES daily_logs(id) ON DELETE CASCADE,
       FOREIGN KEY(master_item_id) REFERENCES master_items(id) ON DELETE CASCADE
       )
-    `);
+    `, () => {
+      db.all("PRAGMA table_info(site_photos)", [], (err, columns) => {
+        if (err || !columns) return;
+        const columnNames = columns.map((c) => c.name);
+        if (!columnNames.includes("photo_type")) {
+          db.run("ALTER TABLE site_photos ADD COLUMN photo_type TEXT DEFAULT 'avance'");
+        }
+        if (!columnNames.includes("watermark_text")) {
+          db.run("ALTER TABLE site_photos ADD COLUMN watermark_text TEXT DEFAULT ''");
+        }
+      });
+    });
 
     db.run(`
       CREATE TABLE IF NOT EXISTS audit_logs (
