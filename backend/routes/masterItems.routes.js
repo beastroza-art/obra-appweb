@@ -227,6 +227,14 @@ function getTowerOptions(towerCount) {
   ).map((letter) => `Torre ${letter}`);
 }
 
+function normalizeTowerStr(str) {
+  return String(str || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 function validateProjectTower(projectName, tower, callback) {
   db.get(
     "SELECT name, tower_count FROM projects WHERE name = ?",
@@ -238,15 +246,23 @@ function validateProjectTower(projectName, tower, callback) {
         return callback(null, "La obra seleccionada no existe");
       }
 
-      const validTowers = [...getTowerOptions(project.tower_count), "Exteriores"];
-      if (!validTowers.includes(tower)) {
+      const validTowers = [
+        ...getTowerOptions(project.tower_count),
+        "Exteriores",
+        "Subterráneo",
+        "Áreas Comunes",
+      ];
+      const normalizedTower = normalizeTowerStr(tower);
+      const matched = validTowers.find((vt) => normalizeTowerStr(vt) === normalizedTower);
+
+      if (!matched) {
         return callback(
           null,
-          `La torre seleccionada no pertenece a la obra. Debe ser una de: ${validTowers.join(", ")}`,
+          `La torre o sector seleccionado no pertenece a la obra. Debe ser uno de: ${validTowers.join(", ")}`,
         );
       }
 
-      callback(null, "");
+      callback(null, "", matched);
     },
   );
 }
@@ -512,6 +528,12 @@ router.post("/", (req, res) => {
   } = req.body;
 
   const { tower, floor, scope_type, departments } = scopeFields;
+  const zone_type = req.body.zone_type || (
+    tower === "Subterráneo" ? "subterraneo" :
+    tower === "Exteriores" ? "exterior" :
+    tower === "Áreas Comunes" ? "comun" :
+    isVerticalScope(scope_type) ? "vertical" : "torre"
+  );
 
   const runInsert = () => {
     if (scope_type === "multiples_pisos") {
@@ -520,9 +542,9 @@ router.post("/", (req, res) => {
         INSERT INTO master_items (
           project, tower, floor, scope_type, departments, activity, start_date, end_date,
           planned_qty, executed_qty, unit, crew_name, crew_size, crew_members, restrictions,
-          observations, status, release_status, parent_id
+          observations, status, release_status, parent_id, zone_type
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)
       `;
       
       const floorsList = getFloorValues(floor);
@@ -552,6 +574,7 @@ router.post("/", (req, res) => {
         observations || "",
         status || "pendiente",
         release_status || "no_liberado",
+        zone_type,
       ];
 
       db.run(parentSql, parentValues, function (err) {
@@ -564,9 +587,9 @@ router.post("/", (req, res) => {
           INSERT INTO master_items (
             project, tower, floor, scope_type, departments, activity, start_date, end_date,
             planned_qty, executed_qty, unit, crew_name, crew_size, crew_members, restrictions,
-            observations, status, release_status, parent_id
+            observations, status, release_status, parent_id, zone_type
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
 
         const statement = db.prepare(childSql);
@@ -614,7 +637,8 @@ router.post("/", (req, res) => {
             observations || "",
             status || "pendiente",
             release_status || "no_liberado",
-            parentId
+            parentId,
+            zone_type,
           ];
 
           statement.run(childValues, function (err) {
@@ -656,9 +680,10 @@ router.post("/", (req, res) => {
         restrictions,
         observations,
         status,
-        release_status
+        release_status,
+        zone_type
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const buildItem = (id, floorValue) => ({
@@ -681,6 +706,7 @@ router.post("/", (req, res) => {
       observations: observations || "",
       status: status || "pendiente",
       release_status: release_status || "no_liberado",
+      zone_type,
     });
 
     const buildValues = (floorValue) => [
@@ -702,6 +728,7 @@ router.post("/", (req, res) => {
       observations || "",
       status || "pendiente",
       release_status || "no_liberado",
+      zone_type,
     ];
 
     const floorValues =
@@ -756,10 +783,14 @@ router.post("/", (req, res) => {
     return;
   }
 
-  validateProjectTower(project, tower, (err, towerValidationError) => {
+  validateProjectTower(project, tower, (err, towerValidationError, canonicalTower) => {
     if (err) return res.status(500).json({ error: err.message });
     if (towerValidationError)
       return res.status(400).json({ error: towerValidationError });
+
+    if (canonicalTower) {
+      scopeFields.tower = canonicalTower;
+    }
 
     runInsert();
   });
@@ -791,6 +822,12 @@ router.put("/:id", (req, res) => {
   } = req.body;
 
   const { tower, floor, scope_type, departments } = scopeFields;
+  const zone_type = req.body.zone_type || (
+    tower === "Subterráneo" ? "subterraneo" :
+    tower === "Exteriores" ? "exterior" :
+    tower === "Áreas Comunes" ? "comun" :
+    isVerticalScope(scope_type) ? "vertical" : "torre"
+  );
 
   const runUpdate = () => {
     db.get(
@@ -808,7 +845,8 @@ router.put("/:id", (req, res) => {
           departments = ?,
           activity = ?, start_date = ?, end_date = ?, planned_qty = ?,
           unit = ?, crew_name = ?, crew_size = ?, crew_members = ?,
-          restrictions = ?, observations = ?, status = ?, release_status = ?
+          restrictions = ?, observations = ?, status = ?, release_status = ?,
+          zone_type = ?
         WHERE id = ?
       `;
 
@@ -830,6 +868,7 @@ router.put("/:id", (req, res) => {
           observations || "",
           status || "pendiente",
           release_status || "no_liberado",
+          zone_type,
           id,
         ];
 
@@ -845,7 +884,8 @@ router.put("/:id", (req, res) => {
                 SET
                   project = ?, tower = ?, activity = ?, start_date = ?, end_date = ?,
                   unit = ?, crew_name = ?, crew_size = ?, crew_members = ?,
-                  restrictions = ?, observations = ?, status = ?, release_status = ?
+                  restrictions = ?, observations = ?, status = ?, release_status = ?,
+                  zone_type = ?
                 WHERE parent_id = ?
               `;
               db.run(propagateSql, [
@@ -853,6 +893,7 @@ router.put("/:id", (req, res) => {
                 String(unit || "und").trim().toLowerCase(), crew_name || "", toNumber(crew_size),
                 stringifyArray(crew_members), restrictions || "", observations || "",
                 status || "pendiente", release_status || "no_liberado",
+                zone_type,
                 id
               ], (propErr) => {
                 if (propErr) console.error("Error propagating updates to children:", propErr);
@@ -926,10 +967,14 @@ router.put("/:id", (req, res) => {
     return;
   }
 
-  validateProjectTower(project, tower, (err, towerValidationError) => {
+  validateProjectTower(project, tower, (err, towerValidationError, canonicalTower) => {
     if (err) return res.status(500).json({ error: err.message });
     if (towerValidationError)
       return res.status(400).json({ error: towerValidationError });
+
+    if (canonicalTower) {
+      scopeFields.tower = canonicalTower;
+    }
 
     runUpdate();
   });

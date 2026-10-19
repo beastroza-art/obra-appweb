@@ -19,7 +19,18 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, X, Layers } from "lucide-react";
+import {
+  Plus,
+  X,
+  Layers,
+  Building2,
+  Car,
+  Trees,
+  Zap,
+  ArrowUpDown,
+  Check,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import { usePermissions } from "@/lib/PermissionsContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -99,12 +110,11 @@ const INITIAL_FORM = {
   floor_planned_qtys: {},
 };
 
-function getTowerOptions(towerCount) {
+function getTowerOnlyOptions(towerCount) {
   const count = Number.isInteger(Number(towerCount)) ? Number(towerCount) : 1;
-  const towers = TOWER_LETTERS.slice(0, Math.min(Math.max(count, 1), TOWER_LETTERS.length)).map(
+  return TOWER_LETTERS.slice(0, Math.min(Math.max(count, 1), TOWER_LETTERS.length)).map(
     (letter) => `Torre ${letter}`
   );
-  return [...towers, "Exteriores"];
 }
 
 function getFormFromEditItem(editItem) {
@@ -269,10 +279,23 @@ export default function MasterItemForm({
   const [error, setError] = useState("");
   const [hasRestriction, setHasRestriction] = useState(false);
 
-  const [selectedTowerTask, setSelectedTowerTask] = useState("piso");
+  // Macro-Zone states
+  const [zoneType, setZoneType] = useState("torre"); // 'torre' | 'subterraneo' | 'exterior' | 'comun' | 'vertical'
+  const [towerScopeMode, setTowerScopeMode] = useState("departamento"); // 'departamento' | 'pasillo'
   const [verticalSubtype, setVerticalSubtype] = useState(SCOPE_TYPES.VERTICAL_EL);
   const [floorSelectionMode, setFloorSelectionMode] = useState("single");
-  const [singleFloorSubScope, setSingleFloorSubScope] = useState("departamento");
+
+  const [selectedSubterraneo, setSelectedSubterraneo] = useState("");
+  const [customSubterraneo, setCustomSubterraneo] = useState("");
+  const [isCustomSubterraneo, setIsCustomSubterraneo] = useState(false);
+
+  const [selectedExterior, setSelectedExterior] = useState("");
+  const [customExterior, setCustomExterior] = useState("");
+  const [isCustomExterior, setIsCustomExterior] = useState(false);
+
+  const [selectedAreaComun, setSelectedAreaComun] = useState("");
+  const [customAreaComun, setCustomAreaComun] = useState("");
+  const [isCustomAreaComun, setIsCustomAreaComun] = useState(false);
 
   const [draftRestored, setDraftRestored] = useState(false);
   const isInitializedRef = useRef(false);
@@ -304,33 +327,57 @@ export default function MasterItemForm({
     }
   }
 
-  const floorOptions = React.useMemo(() => {
-    let list = [];
-    if (selectedProjectObj) {
-      const pFloors = safeParseJson(selectedProjectObj.floors, []);
-      const pSubs = safeParseJson(selectedProjectObj.subterraneos, []);
-      const pExts = safeParseJson(selectedProjectObj.exteriores, []);
-      const pComunes = safeParseJson(selectedProjectObj.areas_comunes, []);
-
-      const sortedFloors = [...pFloors].sort((a, b) => sortFloors(a, b));
-
-      const items = [
-        ...sortedFloors.map((f) => ({ label: f, value: f, group: "Torre" })),
-        ...pSubs.map((s) => ({ label: s, value: s, group: "Subterráneo" })),
-        ...pExts.map((e) => ({ label: e, value: e, group: "Exterior" })),
-        ...pComunes.map((c) => ({ label: c, value: c, group: "Sala Técnica" })),
-      ];
-
-      if (items.length > 0) {
-        list = items;
-      }
-    } else {
-      list = ALL_FLOOR_OPTIONS;
-    }
-    return list;
+  const towerOnlyOptions = useMemo(() => {
+    return getTowerOnlyOptions(selectedProjectObj?.tower_count);
   }, [selectedProjectObj]);
 
-  const deptoOptions = React.useMemo(() => {
+  const isTowerValid = !form.tower || towerOnlyOptions.includes(form.tower);
+  const isActivityValid = !form.activity || activityOptions.includes(form.activity);
+
+  const projectTowerFloors = useMemo(() => {
+    if (selectedProjectObj) {
+      const pFloors = safeParseJson(selectedProjectObj.floors, []);
+      const valid = pFloors.filter(
+        (f) => !/Subterr[aá]neo/i.test(f) && !/Exterior/i.test(f) && !/Comun/i.test(f)
+      );
+      if (valid.length > 0) return [...valid].sort(sortFloors);
+    }
+    return ALL_FLOOR_OPTIONS
+      .filter((f) => !/Subterr[aá]neo/i.test(f.value) && f.value !== "Exteriores" && f.value !== "Áreas Comunes")
+      .map((f) => f.value);
+  }, [selectedProjectObj]);
+
+  const projectSubterraneos = useMemo(() => {
+    if (selectedProjectObj) {
+      const pSubs = safeParseJson(selectedProjectObj.subterraneos, []);
+      if (Array.isArray(pSubs) && pSubs.length > 0) return pSubs;
+    }
+    return ["Subterráneo 1", "Subterráneo 2"];
+  }, [selectedProjectObj]);
+
+  const projectExteriores = useMemo(() => {
+    if (selectedProjectObj) {
+      const pExts = safeParseJson(selectedProjectObj.exteriores, []);
+      if (Array.isArray(pExts) && pExts.length > 0) return pExts;
+    }
+    return ["Canalización de Empalme", "Alumbrado Exterior", "Patios y Urbanización"];
+  }, [selectedProjectObj]);
+
+  const projectAreasComunes = useMemo(() => {
+    if (selectedProjectObj) {
+      const pComs = safeParseJson(selectedProjectObj.areas_comunes, []);
+      if (Array.isArray(pComs) && pComs.length > 0) return pComs;
+    }
+    return [
+      "Sala Eléctrica Principal (TGBT)",
+      "Sala de Bombas",
+      "Sala de Grupo Electrógeno",
+      "Conserjería y Control",
+      "Hall de Acceso",
+    ];
+  }, [selectedProjectObj]);
+
+  const deptoOptions = useMemo(() => {
     if (selectedProjectObj && form.floors?.[0]) {
       const floorDeps = safeParseJson(selectedProjectObj.departments, {})[form.floors[0]] || [];
       return [...floorDeps]
@@ -339,6 +386,24 @@ export default function MasterItemForm({
     }
     return [];
   }, [selectedProjectObj, form.floors]);
+
+  const handleZoneChange = (newZone) => {
+    if (editItem) return;
+    setZoneType(newZone);
+    if (newZone === "subterraneo" && !selectedSubterraneo && projectSubterraneos.length > 0) {
+      setSelectedSubterraneo(projectSubterraneos[0]);
+    }
+    if (newZone === "exterior" && !selectedExterior && projectExteriores.length > 0) {
+      setSelectedExterior(projectExteriores[0]);
+    }
+    if (newZone === "comun" && !selectedAreaComun && projectAreasComunes.length > 0) {
+      setSelectedAreaComun(projectAreasComunes[0]);
+    }
+    if (newZone === "torre" && !form.tower && towerOnlyOptions.length > 0) {
+      updateFormField("tower", towerOnlyOptions[0]);
+    }
+    if (error) setError("");
+  };
 
   useEffect(() => {
     if (!open) {
@@ -363,10 +428,20 @@ export default function MasterItemForm({
           setForm(parsed.form);
           if (Array.isArray(parsed.crewMembers)) setCrewMembers(parsed.crewMembers);
           if (typeof parsed.hasRestriction === "boolean") setHasRestriction(parsed.hasRestriction);
-          if (parsed.selectedTowerTask) setSelectedTowerTask(parsed.selectedTowerTask);
+          if (parsed.zoneType) setZoneType(parsed.zoneType);
+          if (parsed.towerScopeMode) setTowerScopeMode(parsed.towerScopeMode);
           if (parsed.verticalSubtype) setVerticalSubtype(parsed.verticalSubtype);
           if (parsed.floorSelectionMode) setFloorSelectionMode(parsed.floorSelectionMode);
-          if (parsed.singleFloorSubScope) setSingleFloorSubScope(parsed.singleFloorSubScope);
+          if (parsed.selectedSubterraneo) setSelectedSubterraneo(parsed.selectedSubterraneo);
+          if (parsed.customSubterraneo) setCustomSubterraneo(parsed.customSubterraneo);
+          if (typeof parsed.isCustomSubterraneo === "boolean") setIsCustomSubterraneo(parsed.isCustomSubterraneo);
+          if (parsed.selectedExterior) setSelectedExterior(parsed.selectedExterior);
+          if (parsed.customExterior) setCustomExterior(parsed.customExterior);
+          if (typeof parsed.isCustomExterior === "boolean") setIsCustomExterior(parsed.isCustomExterior);
+          if (parsed.selectedAreaComun) setSelectedAreaComun(parsed.selectedAreaComun);
+          if (parsed.customAreaComun) setCustomAreaComun(parsed.customAreaComun);
+          if (typeof parsed.isCustomAreaComun === "boolean") setIsCustomAreaComun(parsed.isCustomAreaComun);
+
           setDraftRestored(true);
           restoredFromDraft = true;
         }
@@ -383,13 +458,27 @@ export default function MasterItemForm({
         setCrewMembers(getCrewMembersFromEditItem(editItem));
         setHasRestriction(!!parsedForm.restrictions?.trim());
 
-        const scopeType = parsedForm.scope_type;
-        if (isVerticalScope(scopeType)) {
-          setSelectedTowerTask("vertical");
-          setVerticalSubtype(scopeType);
+        const rawTower = editItem.tower || "";
+        const rawFloor = editItem.floor || "";
+        const rawScope = editItem.scope_type || "";
+        const rawZone = editItem.zone_type || "";
+
+        if (rawZone === "subterraneo" || rawTower === "Subterráneo" || /Subterr[aá]neo/i.test(rawFloor)) {
+          setZoneType("subterraneo");
+          setSelectedSubterraneo(rawFloor);
+        } else if (rawZone === "exterior" || rawTower === "Exteriores" || /exterior/i.test(rawTower) || /exterior/i.test(rawFloor)) {
+          setZoneType("exterior");
+          setSelectedExterior(rawFloor);
+        } else if (rawZone === "comun" || rawTower === "Áreas Comunes" || rawScope === "espacios_comunes" || rawScope === "salas_asignables") {
+          setZoneType("comun");
+          setSelectedAreaComun(rawFloor);
+        } else if (rawZone === "vertical" || isVerticalScope(rawScope)) {
+          setZoneType("vertical");
+          setVerticalSubtype(rawScope);
         } else {
-          setSelectedTowerTask("piso");
-          if (scopeType === "multiples_pisos") {
+          setZoneType("torre");
+          if (rawScope === "multiples_pisos") {
+            setTowerScopeMode("pasillo");
             setFloorSelectionMode("multiple");
             const children = allItems.filter((i) => i.parent_id === editItem.id);
             if (children.length > 0) {
@@ -400,23 +489,36 @@ export default function MasterItemForm({
               parsedForm.floor_planned_qtys = qtys;
               setForm({ ...parsedForm, floor_planned_qtys: qtys });
             }
-          } else {
+          } else if (rawScope === "departamento" || editItem.departments) {
+            setTowerScopeMode("departamento");
             setFloorSelectionMode("single");
-            if (["departamento", "pasillo", "espacios_comunes", "salas_asignables", "bodegas"].includes(scopeType)) {
-              setSingleFloorSubScope(scopeType);
-            } else {
-              setSingleFloorSubScope("departamento");
-            }
+          } else {
+            setTowerScopeMode("pasillo");
+            setFloorSelectionMode("single");
           }
         }
       } else {
-        setForm({ ...INITIAL_FORM });
+        const initialProject = filteredProjects[0]?.name || "";
+        const initialProjectObj = projects.find((p) => p.name === initialProject);
+        const initialTower = initialProjectObj
+          ? getTowerOnlyOptions(initialProjectObj.tower_count)[0] || "Torre A"
+          : "Torre A";
+        setForm({ ...INITIAL_FORM, project: initialProject, tower: initialTower });
         setCrewMembers([{ ...EMPTY_MEMBER }]);
         setHasRestriction(false);
-        setSelectedTowerTask("piso");
+        setZoneType("torre");
+        setTowerScopeMode("departamento");
         setVerticalSubtype(SCOPE_TYPES.VERTICAL_EL);
         setFloorSelectionMode("single");
-        setSingleFloorSubScope("departamento");
+        setSelectedSubterraneo("");
+        setCustomSubterraneo("");
+        setIsCustomSubterraneo(false);
+        setSelectedExterior("");
+        setCustomExterior("");
+        setIsCustomExterior(false);
+        setSelectedAreaComun("");
+        setCustomAreaComun("");
+        setIsCustomAreaComun(false);
       }
     }
 
@@ -431,10 +533,19 @@ export default function MasterItemForm({
         form,
         crewMembers,
         hasRestriction,
-        selectedTowerTask,
+        zoneType,
+        towerScopeMode,
         verticalSubtype,
         floorSelectionMode,
-        singleFloorSubScope,
+        selectedSubterraneo,
+        customSubterraneo,
+        isCustomSubterraneo,
+        selectedExterior,
+        customExterior,
+        isCustomExterior,
+        selectedAreaComun,
+        customAreaComun,
+        isCustomAreaComun,
         timestamp: Date.now(),
       };
       localStorage.setItem(draftKey, JSON.stringify(dataToSave));
@@ -453,10 +564,19 @@ export default function MasterItemForm({
     form,
     crewMembers,
     hasRestriction,
-    selectedTowerTask,
+    zoneType,
+    towerScopeMode,
     verticalSubtype,
     floorSelectionMode,
-    singleFloorSubScope,
+    selectedSubterraneo,
+    customSubterraneo,
+    isCustomSubterraneo,
+    selectedExterior,
+    customExterior,
+    isCustomExterior,
+    selectedAreaComun,
+    customAreaComun,
+    isCustomAreaComun,
     editItem?.id,
   ]);
 
@@ -496,10 +616,19 @@ export default function MasterItemForm({
       setForm({ ...INITIAL_FORM });
       setCrewMembers([{ ...EMPTY_MEMBER }]);
       setHasRestriction(false);
-      setSelectedTowerTask("piso");
+      setZoneType("torre");
+      setTowerScopeMode("departamento");
       setVerticalSubtype(SCOPE_TYPES.VERTICAL_EL);
       setFloorSelectionMode("single");
-      setSingleFloorSubScope("departamento");
+      setSelectedSubterraneo("");
+      setCustomSubterraneo("");
+      setIsCustomSubterraneo(false);
+      setSelectedExterior("");
+      setCustomExterior("");
+      setIsCustomExterior(false);
+      setSelectedAreaComun("");
+      setCustomAreaComun("");
+      setIsCustomAreaComun(false);
     }
   };
 
@@ -527,19 +656,33 @@ export default function MasterItemForm({
     if (error) setError("");
   };
 
-  const towerOptions = getTowerOptions(selectedProjectObj?.tower_count);
-  const isTowerValid = !form.tower || towerOptions.includes(form.tower);
-  const isActivityValid = !form.activity || activityOptions.includes(form.activity);
-
   const handleProjectChange = (value) => {
     const nextProject = projects.find((project) => project.name === value);
-    const nextTowerOptions = getTowerOptions(nextProject?.tower_count);
+    const nextTowers = getTowerOnlyOptions(nextProject?.tower_count);
+    const nextSubs = safeParseJson(nextProject?.subterraneos, []);
+    const nextExts = safeParseJson(nextProject?.exteriores, []);
+    const nextComs = safeParseJson(nextProject?.areas_comunes, []);
 
     setForm((prev) => ({
       ...prev,
       project: value,
-      tower: nextTowerOptions.includes(prev.tower) ? prev.tower : "",
+      tower: nextTowers[0] || "Torre A",
+      floors: [],
+      departments: "",
     }));
+
+    if (nextSubs.length > 0) {
+      setSelectedSubterraneo(nextSubs[0]);
+      setIsCustomSubterraneo(false);
+    }
+    if (nextExts.length > 0) {
+      setSelectedExterior(nextExts[0]);
+      setIsCustomExterior(false);
+    }
+    if (nextComs.length > 0) {
+      setSelectedAreaComun(nextComs[0]);
+      setIsCustomAreaComun(false);
+    }
 
     if (error) setError("");
   };
@@ -576,45 +719,63 @@ export default function MasterItemForm({
       return "Debe seleccionar una obra/proyecto.";
     }
 
-    if (!form.tower) {
-      return "Debe seleccionar una torre o exteriores.";
+    if (zoneType === "torre") {
+      if (!form.tower) {
+        return "Debe seleccionar una torre.";
+      }
+      if (!isTowerValid) {
+        return "Debe seleccionar una torre válida para la obra.";
+      }
+      if (towerScopeMode === "departamento") {
+        if (!form.floors || form.floors.length === 0) {
+          return "Debe seleccionar un piso para los departamentos.";
+        }
+        if (!form.departments?.trim()) {
+          return "Debe seleccionar al menos un departamento.";
+        }
+      } else {
+        if (!form.floors || form.floors.length === 0) {
+          return "Debe seleccionar al menos un piso.";
+        }
+        if (floorSelectionMode === "multiple") {
+          const missingQty = form.floors.some(
+            (f) => !form.floor_planned_qtys?.[f] || Number(form.floor_planned_qtys[f]) <= 0
+          );
+          if (missingQty) {
+            return "Debe ingresar una cantidad planificada mayor a 0 para cada piso seleccionado.";
+          }
+        }
+      }
+    } else if (zoneType === "subterraneo") {
+      const finalSub = isCustomSubterraneo ? customSubterraneo.trim() : selectedSubterraneo;
+      if (!finalSub) {
+        return "Debe seleccionar o ingresar un nivel de subterráneo.";
+      }
+    } else if (zoneType === "exterior") {
+      const finalExt = isCustomExterior ? customExterior.trim() : selectedExterior;
+      if (!finalExt) {
+        return "Debe seleccionar o ingresar un sector exterior.";
+      }
+    } else if (zoneType === "comun") {
+      const finalCom = isCustomAreaComun ? customAreaComun.trim() : selectedAreaComun;
+      if (!finalCom) {
+        return "Debe seleccionar o ingresar una sala técnica o área común.";
+      }
+    } else if (zoneType === "vertical") {
+      if (!form.tower) {
+        return "Debe seleccionar una torre para la montante vertical.";
+      }
+      if (!verticalSubtype) {
+        return "Debe seleccionar el tipo de vertical (EL, TC o CD).";
+      }
     }
 
-    if (!isTowerValid) {
-      return "Debe seleccionar una torre valida para la obra.";
-    }
-
-    if (!form.activity.trim()) {
+    if (!form.activity?.trim()) {
       return "Debe seleccionar una actividad.";
     }
 
     if (!isActivityValid) {
-      return "Debe seleccionar una actividad del catalogo definido.";
-    }
-
-    if (form.tower !== "Exteriores") {
-      if (selectedTowerTask !== "vertical") {
-        if (floorSelectionMode === "multiple") {
-          if (!form.floors || form.floors.length === 0) {
-            return "Debe seleccionar al menos un piso.";
-          }
-        } else {
-          if (!form.floors || form.floors.length === 0) {
-            return "Debe seleccionar el piso.";
-          }
-          if (form.floors.length > 1) {
-            return "Seleccione un solo piso.";
-          }
-          if (singleFloorSubScope === "departamento") {
-            if (!/Piso\s+(\d+)/i.test(form.floors[0])) {
-              return "Este nivel no admite departamentos estándar.";
-            }
-            if (!form.departments.trim()) {
-              return "Debe ingresar al menos un departamento.";
-            }
-          }
-        }
-      }
+      return "Debe seleccionar una actividad del catálogo definido.";
     }
 
     if (!form.start_date) {
@@ -622,21 +783,16 @@ export default function MasterItemForm({
     }
 
     if (!form.end_date) {
-      return "Debe ingresar la fecha de termino.";
+      return "Debe ingresar la fecha de término.";
     }
 
-    if (floorSelectionMode === "multiple" && form.floors && form.floors.length > 0) {
-      const missingQty = form.floors.some((f) => !form.floor_planned_qtys?.[f] || Number(form.floor_planned_qtys[f]) <= 0);
-      if (missingQty) {
-        return "Debe ingresar una cantidad planificada mayor a 0 para cada piso seleccionado.";
+    if (!(zoneType === "torre" && towerScopeMode === "pasillo" && floorSelectionMode === "multiple")) {
+      if (!form.planned_qty || Number(form.planned_qty) <= 0) {
+        return "Debe ingresar una cantidad planificada mayor a 0.";
       }
     }
 
-    if (!form.planned_qty || Number(form.planned_qty) <= 0) {
-      return "Debe ingresar una cantidad planificada mayor a 0.";
-    }
-
-    if (!form.unit.trim()) {
+    if (!form.unit?.trim()) {
       return "Debe seleccionar una unidad de medición.";
     }
 
@@ -644,12 +800,12 @@ export default function MasterItemForm({
       return "Debe seleccionar una unidad de medición válida.";
     }
 
-    if (!form.crew_name.trim()) {
+    if (!form.crew_name?.trim()) {
       return "Debe ingresar el nombre de la cuadrilla.";
     }
 
     if (crewCatalogConflict) {
-      return `La cuadrilla ya existe como "${crewCatalogConflict}". Usa ese nombre para evitar duplicados por mayusculas o tildes.`;
+      return `La cuadrilla ya existe como "${crewCatalogConflict}". Usa ese nombre para evitar duplicados por mayúsculas o tildes.`;
     }
 
     const filledMembers = crewMembers.filter((member) => member.name.trim() || member.role.trim());
@@ -665,11 +821,11 @@ export default function MasterItemForm({
       return "Cada integrante de la cuadrilla debe tener nombre y cargo.";
     }
 
-    if (hasRestriction && !form.restrictions.trim()) {
+    if (hasRestriction && !form.restrictions?.trim()) {
       return "Debe ingresar el detalle de la restricción.";
     }
 
-    if (!form.observations.trim()) {
+    if (!form.observations?.trim()) {
       return "Debe ingresar observaciones.";
     }
 
@@ -684,44 +840,65 @@ export default function MasterItemForm({
         role: member.role.trim(),
       }));
 
-    let scope_type = SCOPE_TYPES.TORRE;
-    let floor = "";
-    let departments = "";
+    let finalTower = form.tower || towerOnlyOptions[0] || "Torre A";
+    let finalFloor = "";
+    let finalScopeType = SCOPE_TYPES.PISO;
+    let finalZoneType = zoneType;
+    let finalDepartments = "";
 
-    if (form.tower === "Exteriores") {
-      scope_type = SCOPE_TYPES.TORRE;
-      floor = "";
-      departments = "";
-    } else {
-      if (selectedTowerTask === "vertical") {
-        scope_type = verticalSubtype;
+    if (zoneType === "torre") {
+      finalTower = form.tower || towerOnlyOptions[0] || "Torre A";
+      finalZoneType = "torre";
+      if (towerScopeMode === "departamento") {
+        finalScopeType = "departamento";
+        finalFloor = form.floors?.[0] || "";
+        const sortedDeps = (form.departments || "")
+          .split(",")
+          .map((d) => d.trim())
+          .filter(Boolean)
+          .sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+        finalDepartments = sortedDeps.join(", ");
+      } else if (floorSelectionMode === "multiple") {
+        finalScopeType = "multiples_pisos";
+        finalFloor = [...form.floors].sort(sortFloors).join(", ");
       } else {
-        if (floorSelectionMode === "multiple") {
-          scope_type = "multiples_pisos";
-          const sortedFloors = [...form.floors].sort(sortFloors);
-          floor = sortedFloors.join(", ");
-        } else {
-          scope_type = singleFloorSubScope;
-          floor = form.floors?.[0] || "";
-          if (singleFloorSubScope === "departamento") {
-            const sortedDeps = (form.departments || "")
-              .split(",")
-              .map((d) => d.trim())
-              .filter(Boolean)
-              .sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
-            departments = sortedDeps.join(", ");
-          }
-        }
+        finalScopeType = "pasillo";
+        finalFloor = form.floors?.[0] || "";
       }
+    } else if (zoneType === "subterraneo") {
+      finalTower = "Subterráneo";
+      finalFloor = (isCustomSubterraneo ? customSubterraneo.trim() : selectedSubterraneo) || "Subterráneo 1";
+      finalScopeType = "piso";
+      finalZoneType = "subterraneo";
+      finalDepartments = "";
+    } else if (zoneType === "exterior") {
+      finalTower = "Exteriores";
+      finalFloor = (isCustomExterior ? customExterior.trim() : selectedExterior) || "Exterior";
+      finalScopeType = "piso";
+      finalZoneType = "exterior";
+      finalDepartments = "";
+    } else if (zoneType === "comun") {
+      finalTower = "Áreas Comunes";
+      finalFloor = (isCustomAreaComun ? customAreaComun.trim() : selectedAreaComun) || "Áreas Comunes";
+      finalScopeType = "espacios_comunes";
+      finalZoneType = "comun";
+      finalDepartments = "";
+    } else if (zoneType === "vertical") {
+      finalTower = form.tower || towerOnlyOptions[0] || "Torre A";
+      finalFloor = "";
+      finalScopeType = verticalSubtype;
+      finalZoneType = "vertical";
+      finalDepartments = "";
     }
 
     return {
       ...form,
       project: form.project.trim(),
-      tower: form.tower.trim(),
-      floor,
-      scope_type,
-      departments,
+      tower: finalTower.trim(),
+      floor: finalFloor,
+      scope_type: finalScopeType,
+      zone_type: finalZoneType,
+      departments: finalDepartments,
       activity: form.activity.trim(),
       planned_qty: Number(form.planned_qty || 0),
       unit: form.unit.trim() || "und",
@@ -792,7 +969,7 @@ export default function MasterItemForm({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
             {editItem ? "Editar Ítem" : "Nuevo Ítem Maestro"}
@@ -855,350 +1032,660 @@ export default function MasterItemForm({
               </Select>
             </div>
 
-            <div>
-              <Label className="text-xs">Torre *</Label>
-              <Select
-                value={form.tower}
-                onValueChange={(value) => updateFormField("tower", value)}
-                disabled={!form.project || Boolean(editItem)}
+            {selectedProjectObj?.supervisor ? (
+              <div>
+                <Label className="text-xs">Supervisor de obra</Label>
+                <Input
+                  value={selectedProjectObj.supervisor}
+                  readOnly
+                  className="bg-muted/50 text-muted-foreground text-xs"
+                />
+              </div>
+            ) : (
+              <div className="hidden sm:block" />
+            )}
+          </div>
+
+          {/* Macro-Zone Selector */}
+          <div className="space-y-1.5 pt-1">
+            <Label className="text-xs font-bold text-slate-700">
+              Sector / Zona de la Obra *
+            </Label>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => handleZoneChange("torre")}
+                disabled={Boolean(editItem)}
+                className={cn(
+                  "flex flex-col items-center justify-center py-2 px-2 rounded-lg text-xs font-bold transition-all gap-1 cursor-pointer",
+                  zoneType === "torre"
+                    ? "bg-white text-primary shadow-xs border border-slate-200 font-extrabold"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60",
+                  editItem && "cursor-not-allowed opacity-80"
+                )}
               >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      form.project ? "Seleccionar torre" : "Seleccione obra"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {form.tower && !isTowerValid && (
-                    <SelectItem value={form.tower} disabled>
-                      {form.tower} (fuera del rango actual)
-                    </SelectItem>
-                  )}
-                  {towerOptions.map((tower) => (
-                    <SelectItem key={tower} value={tower}>
-                      {tower}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                <Building2 className="w-4 h-4" />
+                <span>Torre</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleZoneChange("subterraneo")}
+                disabled={Boolean(editItem)}
+                className={cn(
+                  "flex flex-col items-center justify-center py-2 px-2 rounded-lg text-xs font-bold transition-all gap-1 cursor-pointer",
+                  zoneType === "subterraneo"
+                    ? "bg-white text-primary shadow-xs border border-slate-200 font-extrabold"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60",
+                  editItem && "cursor-not-allowed opacity-80"
+                )}
+              >
+                <Car className="w-4 h-4" />
+                <span>Subterráneo</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleZoneChange("exterior")}
+                disabled={Boolean(editItem)}
+                className={cn(
+                  "flex flex-col items-center justify-center py-2 px-2 rounded-lg text-xs font-bold transition-all gap-1 cursor-pointer",
+                  zoneType === "exterior"
+                    ? "bg-white text-primary shadow-xs border border-slate-200 font-extrabold"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60",
+                  editItem && "cursor-not-allowed opacity-80"
+                )}
+              >
+                <Trees className="w-4 h-4" />
+                <span>Exteriores</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleZoneChange("comun")}
+                disabled={Boolean(editItem)}
+                className={cn(
+                  "flex flex-col items-center justify-center py-2 px-2 rounded-lg text-xs font-bold transition-all gap-1 cursor-pointer",
+                  zoneType === "comun"
+                    ? "bg-white text-primary shadow-xs border border-slate-200 font-extrabold"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60",
+                  editItem && "cursor-not-allowed opacity-80"
+                )}
+              >
+                <Zap className="w-4 h-4" />
+                <span>Salas Técnicas</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleZoneChange("vertical")}
+                disabled={Boolean(editItem)}
+                className={cn(
+                  "flex flex-col items-center justify-center py-2 px-2 rounded-lg text-xs font-bold transition-all gap-1 col-span-2 sm:col-span-1 cursor-pointer",
+                  zoneType === "vertical"
+                    ? "bg-white text-primary shadow-xs border border-slate-200 font-extrabold"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60",
+                  editItem && "cursor-not-allowed opacity-80"
+                )}
+              >
+                <ArrowUpDown className="w-4 h-4" />
+                <span>Verticales</span>
+              </button>
             </div>
           </div>
 
-          {selectedProjectObj?.supervisor && (
-            <div>
-              <Label className="text-xs">Supervisor de obra</Label>
-              <Input
-                value={selectedProjectObj.supervisor}
-                readOnly
-                className="bg-muted/50 text-muted-foreground"
-              />
+          {/* Zone 1: TORRE */}
+          {zoneType === "torre" && (
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {towerOnlyOptions.length > 1 && (
+                  <div>
+                    <Label className="text-xs font-bold text-slate-800">Torre *</Label>
+                    <Select
+                      value={form.tower || towerOnlyOptions[0]}
+                      onValueChange={(val) => updateFormField("tower", val)}
+                      disabled={Boolean(editItem)}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-white mt-1">
+                        <SelectValue placeholder="Seleccionar torre" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {towerOnlyOptions.map((t) => (
+                          <SelectItem key={t} value={t}>{t}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                <div className={towerOnlyOptions.length > 1 ? "" : "sm:col-span-2"}>
+                  <Label className="text-xs font-bold text-slate-800">Modo de Alcance *</Label>
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTowerScopeMode("departamento");
+                        setFloorSelectionMode("single");
+                      }}
+                      disabled={Boolean(editItem)}
+                      className={cn(
+                        "py-1.5 px-3 rounded-lg border text-xs font-semibold transition-all text-center cursor-pointer",
+                        towerScopeMode === "departamento"
+                          ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50",
+                        editItem && "cursor-not-allowed opacity-80"
+                      )}
+                    >
+                      Por Departamentos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTowerScopeMode("pasillo");
+                        updateFormField("departments", "");
+                      }}
+                      disabled={Boolean(editItem)}
+                      className={cn(
+                        "py-1.5 px-3 rounded-lg border text-xs font-semibold transition-all text-center cursor-pointer",
+                        towerScopeMode === "pasillo"
+                          ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50",
+                        editItem && "cursor-not-allowed opacity-80"
+                      )}
+                    >
+                      Piso Completo / Pasillo
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {towerScopeMode === "departamento" ? (
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-1">
+                  <div className="sm:col-span-5 space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-700">Seleccionar Piso *</Label>
+                    <div className="border rounded-xl p-2 h-48 overflow-y-auto space-y-1 bg-white scrollbar-thin">
+                      {projectTowerFloors.map((floor) => {
+                        const isSelected = form.floors?.[0] === floor;
+                        return (
+                          <div
+                            key={floor}
+                            onClick={() => {
+                              if (editItem) return;
+                              updateFormField("floors", [floor]);
+                            }}
+                            className={cn(
+                              "flex items-center gap-2 text-xs font-semibold py-1.5 px-2 rounded-lg border transition-all cursor-pointer",
+                              isSelected
+                                ? "bg-primary/10 border-primary text-primary font-bold"
+                                : "border-slate-100 hover:bg-slate-50 text-slate-700",
+                              editItem && "cursor-not-allowed opacity-70"
+                            )}
+                          >
+                            <div className={cn(
+                              "h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0",
+                              isSelected ? "bg-primary border-primary text-white" : "border-slate-300"
+                            )}>
+                              {isSelected && <span className="text-[10px]">✓</span>}
+                            </div>
+                            <span>{floor}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="sm:col-span-7 space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-700">Departamentos del Piso *</Label>
+                    {form.floors?.[0] ? (
+                      deptoOptions.length > 0 ? (
+                        <div className="border rounded-xl p-2.5 bg-white space-y-2 h-48 flex flex-col justify-between">
+                          <div className="flex items-center justify-between border-b pb-1.5">
+                            <span className="text-[11px] font-bold text-slate-800">
+                              Piso: <span className="text-primary font-extrabold">{form.floors[0]}</span>
+                            </span>
+                            <div className="flex gap-1">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-6 text-[10px] px-2"
+                                onClick={() => {
+                                  updateFormField("departments", deptoOptions.map((o) => o.value).join(", "));
+                                }}
+                                disabled={Boolean(editItem)}
+                              >
+                                Todos
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-6 text-[10px] px-2 text-muted-foreground"
+                                onClick={() => updateFormField("departments", "")}
+                                disabled={Boolean(editItem)}
+                              >
+                                Limpiar
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
+                            <div className="grid grid-cols-3 gap-1.5">
+                              {deptoOptions.map((opt) => {
+                                const dep = opt.value;
+                                const selectedDeps = form.departments ? form.departments.split(",").map((d) => d.trim()).filter(Boolean) : [];
+                                const isChecked = selectedDeps.includes(dep);
+                                return (
+                                  <label
+                                    key={dep}
+                                    className={cn(
+                                      "flex items-center justify-center p-1 rounded-lg border text-xs font-bold cursor-pointer transition-all h-8",
+                                      isChecked
+                                        ? "bg-primary text-primary-foreground border-primary shadow-xs font-extrabold"
+                                        : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100",
+                                      editItem && "cursor-not-allowed opacity-70"
+                                    )}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      disabled={Boolean(editItem)}
+                                      onChange={(e) => {
+                                        const updated = e.target.checked
+                                          ? [...selectedDeps, dep]
+                                          : selectedDeps.filter((d) => d !== dep);
+                                        const sorted = updated.sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+                                        updateFormField("departments", sorted.join(", "));
+                                      }}
+                                      className="hidden"
+                                    />
+                                    <span>{dep}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="text-[10px] text-muted-foreground border-t pt-1 flex justify-between font-semibold">
+                            <span>Seleccionados:</span>
+                            <span className="text-primary font-bold">
+                              {(form.departments ? form.departments.split(",").map((d) => d.trim()).filter(Boolean) : []).length} depto(s)
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="border rounded-xl p-3 h-48 flex flex-col justify-between bg-white">
+                          <div className="space-y-1.5">
+                            <Label className="text-[11px] text-muted-foreground">Escribe los números de departamento:</Label>
+                            <Input
+                              value={form.departments}
+                              onChange={(e) => updateFormField("departments", e.target.value)}
+                              placeholder="Ej: 101, 102, 103"
+                              className="h-8 text-xs"
+                              disabled={Boolean(editItem)}
+                            />
+                            <p className="text-[10px] text-muted-foreground">Separados por coma.</p>
+                          </div>
+                        </div>
+                      )
+                    ) : (
+                      <div className="border border-dashed rounded-xl h-48 flex flex-col items-center justify-center text-center p-3 text-slate-400 bg-white">
+                        <Building2 className="w-6 h-6 mb-1 text-slate-300" />
+                        <p className="text-xs font-semibold text-slate-600">Selecciona un piso a la izquierda</p>
+                        <p className="text-[10px] text-slate-400">para desplegar sus departamentos</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-slate-700">Seleccionar Piso(s) *</Label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFloorSelectionMode("single");
+                          if (form.floors?.length > 1) updateFormField("floors", [form.floors[0]]);
+                        }}
+                        disabled={Boolean(editItem)}
+                        className={cn("text-[11px] font-bold underline-offset-2 cursor-pointer", floorSelectionMode === "single" ? "text-primary underline" : "text-muted-foreground")}
+                      >
+                        Un Piso
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setFloorSelectionMode("multiple")}
+                        disabled={Boolean(editItem)}
+                        className={cn("text-[11px] font-bold underline-offset-2 cursor-pointer", floorSelectionMode === "multiple" ? "text-primary underline" : "text-muted-foreground")}
+                      >
+                        Múltiples Pisos
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="border rounded-xl p-2.5 h-48 overflow-y-auto space-y-1 bg-white scrollbar-thin">
+                    {projectTowerFloors.map((floor) => {
+                      const isSelected = form.floors.includes(floor);
+                      return (
+                        <div
+                          key={floor}
+                          onClick={() => {
+                            if (editItem) return;
+                            if (floorSelectionMode === "multiple") {
+                              if (isSelected) {
+                                updateFormField("floors", form.floors.filter((f) => f !== floor));
+                              } else {
+                                updateFormField("floors", [...form.floors, floor]);
+                              }
+                            } else {
+                              updateFormField("floors", [floor]);
+                            }
+                          }}
+                          className={cn(
+                            "flex items-center gap-2 text-xs font-semibold py-1.5 px-2 rounded-lg border transition-all cursor-pointer",
+                            isSelected
+                              ? "bg-primary/10 border-primary text-primary font-bold"
+                              : "border-slate-100 hover:bg-slate-50 text-slate-700",
+                            editItem && "cursor-not-allowed opacity-70"
+                          )}
+                        >
+                          <div className={cn(
+                            "h-3.5 w-3.5 rounded border flex items-center justify-center shrink-0",
+                            isSelected ? "bg-primary border-primary text-white" : "border-slate-300"
+                          )}>
+                            {isSelected && <span className="text-[10px]">✓</span>}
+                          </div>
+                          <span>{floor}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {form.tower && form.tower !== "Exteriores" && (
-            <div className="space-y-3 border-l-2 border-slate-200 pl-3">
+          {/* Zone 2: SUBTERRÁNEO */}
+          {zoneType === "subterraneo" && (
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
               <div>
-                <Label className="text-xs">Tarea *</Label>
-                <Select
-                  value={selectedTowerTask}
-                  onValueChange={(value) => {
-                    setSelectedTowerTask(value);
-                    if (value === "vertical") {
-                      updateFormField("floors", []);
-                    }
-                  }}
-                  disabled={Boolean(editItem)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar tarea" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="vertical">Vertical</SelectItem>
-                    <SelectItem value="piso">Piso</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label className="text-xs font-bold text-slate-800">
+                  Nivel de Subterráneo *
+                </Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Selecciona el nivel o sector del subterráneo configurado para la obra.
+                </p>
               </div>
 
-              {selectedTowerTask === "vertical" && (
-                <div className="space-y-3">
-                  <div>
-                    <Label className="text-xs">Tipo de Vertical *</Label>
-                    <Select
-                      value={verticalSubtype}
-                      onValueChange={(val) => setVerticalSubtype(val)}
-                      disabled={Boolean(editItem)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar tipo de vertical" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="vertical_el">Vertical EL (Eléctrica)</SelectItem>
-                        <SelectItem value="vertical_tc">Vertical TC (Telecomunicaciones)</SelectItem>
-                        <SelectItem value="vertical_cd">Vertical CD (Corrientes Débiles)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2 rounded-md border border-red-100 bg-red-50/60 px-3 py-2">
-                    <p className="text-xs text-red-800">
-                      Los verticales se controlan <strong>por torre</strong>. Registre
-                      la cantidad total en metros, puntos o unidades del riser completo,
-                      no por piso.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {selectedTowerTask === "piso" && (
-                <div className="space-y-3">
-                  <div>
-                    <Label className="text-xs">Modo de Selección de Pisos *</Label>
-                    <Select
-                      value={floorSelectionMode}
-                      onValueChange={(value) => {
-                        setFloorSelectionMode(value);
-                        updateFormField("floors", []);
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {projectSubterraneos.map((sub) => {
+                  const isSelected = !isCustomSubterraneo && selectedSubterraneo === sub;
+                  return (
+                    <button
+                      key={sub}
+                      type="button"
+                      onClick={() => {
+                        if (editItem) return;
+                        setIsCustomSubterraneo(false);
+                        setSelectedSubterraneo(sub);
                       }}
                       disabled={Boolean(editItem)}
+                      className={cn(
+                        "flex items-center gap-2.5 p-2.5 rounded-lg border text-left text-xs font-semibold transition-all cursor-pointer",
+                        isSelected
+                          ? "bg-primary text-primary-foreground border-primary shadow-xs font-bold"
+                          : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+                        editItem && "cursor-not-allowed opacity-80"
+                      )}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Seleccionar modo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="single">Un Piso</SelectItem>
-                        <SelectItem value="multiple">Múltiples Pisos</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                      <Car className={cn("w-4 h-4 shrink-0", isSelected ? "text-primary-foreground" : "text-slate-400")} />
+                      <span className="truncate">{sub}</span>
+                      {isSelected && <Check className="w-3.5 h-3.5 ml-auto shrink-0" />}
+                    </button>
+                  );
+                })}
 
-                  {floorSelectionMode === "single" && (
-                    <div className="space-y-3">
-                      <div>
-                        <Label className="text-xs">Área/Alcance en el Piso *</Label>
-                        <Select
-                          value={singleFloorSubScope}
-                          onValueChange={(value) => {
-                            setSingleFloorSubScope(value);
-                            if (value !== "departamento") {
-                              updateFormField("departments", "");
-                            }
-                          }}
-                          disabled={Boolean(editItem)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar área" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="departamento">Departamentos</SelectItem>
-                            <SelectItem value="pasillo">Pasillo</SelectItem>
-                            <SelectItem value="espacios_comunes">Espacios Comunes</SelectItem>
-                            <SelectItem value="salas_asignables">Salas Asignables</SelectItem>
-                            <SelectItem value="bodegas">Bodegas</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                {!editItem && (
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomSubterraneo(true)}
+                    className={cn(
+                      "flex items-center gap-2 p-2.5 rounded-lg border text-left text-xs font-semibold transition-all border-dashed cursor-pointer",
+                      isCustomSubterraneo
+                        ? "bg-primary/5 text-primary border-primary font-bold"
+                        : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+                    )}
+                  >
+                    <Plus className="w-3.5 h-3.5 shrink-0" />
+                    <span>Otro nivel o sector...</span>
+                  </button>
+                )}
+              </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                        <div className={singleFloorSubScope === "departamento" ? "md:col-span-5 space-y-1.5" : "md:col-span-12 space-y-1.5"}>
-                          <Label className="text-xs font-bold">Piso *</Label>
-                          <div className="border rounded-xl p-2.5 h-48 overflow-y-auto space-y-1 bg-white scrollbar-thin">
-                            {floorOptions.map((opt) => {
-                              const floor = opt.value;
-                              const isSelected = form.floors.includes(floor);
-                              return (
-                                <div
-                                  key={floor}
-                                  onClick={() => {
-                                    if (editItem) return;
-                                    updateFormField("floors", [floor]);
-                                  }}
-                                  className={`flex items-center gap-2 text-xs font-bold py-1.5 px-2 rounded-lg border transition-all mb-0.5 ${
-                                    editItem ? "cursor-not-allowed opacity-70" : "cursor-pointer"
-                                  } ${
-                                    isSelected 
-                                      ? "bg-primary/5 border-primary text-primary" 
-                                      : "border-slate-100 hover:bg-slate-50 text-slate-700"
-                                  }`}
-                                >
-                                  <div className={`h-3.5 w-3.5 border rounded-md flex items-center justify-center transition-colors shrink-0 ${
-                                    isSelected ? "bg-primary border-primary text-white" : "border-slate-300"
-                                  }`}>
-                                    {isSelected && <span className="text-[10px]">✓</span>}
-                                  </div>
-                                  <span>{floor}</span>
-                                  {opt.group && opt.group !== "Torre" && (
-                                    <span className="ml-auto text-[9.5px] px-1.5 py-0.5 rounded font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                                      {opt.group}
-                                    </span>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {singleFloorSubScope === "departamento" && (
-                          <div className="md:col-span-7 space-y-1.5">
-                            <Label className="text-xs font-bold">Departamentos *</Label>
-                            {form.floors?.[0] ? (
-                              !/Piso\s+(\d+)/i.test(form.floors[0]) ? (
-                                <div className="border border-dashed rounded-xl p-3 h-48 flex flex-col items-center justify-center text-center bg-slate-50/50 text-slate-400 gap-1 leading-normal">
-                                  <Layers className="h-6 w-6 text-slate-350" />
-                                  <p className="text-xs font-bold text-slate-600">
-                                    Este nivel no admite departamentos estándar
-                                  </p>
-                                  <p className="text-[10px] text-slate-400 max-w-[200px] leading-relaxed">
-                                    Niveles como Cubierta o Subterráneos solo se configuran con actividades globales (Pasillos, Comunes, etc.).
-                                  </p>
-                                </div>
-                              ) : deptoOptions.length > 0 ? (
-                                <div className="border rounded-xl p-3 bg-slate-50/50 space-y-2.5 h-48 flex flex-col justify-between overflow-hidden">
-                                  <div className="flex items-center justify-between border-b pb-1.5 shrink-0">
-                                    <span className="text-[10px] font-bold text-slate-800">
-                                      Configurar: <span className="text-primary font-extrabold">{form.floors[0]}</span>
-                                    </span>
-                                    <div className="flex gap-1.5">
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-5 text-[9px] font-bold px-1.5 bg-white border"
-                                        onClick={() => {
-                                          updateFormField("departments", deptoOptions.map(o => o.value).join(", "));
-                                        }}
-                                      >
-                                        Todos
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-5 text-[9px] font-bold px-1.5 bg-white border text-muted-foreground"
-                                        onClick={() => {
-                                          updateFormField("departments", "");
-                                        }}
-                                      >
-                                        Limpiar
-                                      </Button>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin">
-                                    <div className="grid grid-cols-3 gap-1">
-                                      {deptoOptions.map((opt) => {
-                                        const dep = opt.value;
-                                        const selectedDeps = form.departments ? form.departments.split(",").map((d) => d.trim()).filter(Boolean) : [];
-                                        const isChecked = selectedDeps.includes(dep);
-                                        return (
-                                          <label
-                                            key={dep}
-                                            className={`flex items-center justify-center p-1 rounded-lg border text-[10px] font-bold cursor-pointer transition-all h-7 ${
-                                              isChecked 
-                                                ? "bg-primary border-primary text-primary-foreground shadow-sm font-extrabold"
-                                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                                            }`}
-                                          >
-                                            <input
-                                              type="checkbox"
-                                              checked={isChecked}
-                                              onChange={(e) => {
-                                                const updated = e.target.checked
-                                                  ? [...selectedDeps, dep]
-                                                  : selectedDeps.filter(d => d !== dep);
-                                                const sorted = updated.sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
-                                                updateFormField("departments", sorted.join(", "));
-                                              }}
-                                              className="hidden"
-                                            />
-                                            <span>{dep}</span>
-                                          </label>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-
-                                  <div className="text-[9px] text-muted-foreground border-t pt-1 shrink-0 flex justify-between font-bold">
-                                    <span>Total:</span>
-                                    <span className="text-primary font-extrabold">
-                                      {(form.departments ? form.departments.split(",").map((d) => d.trim()).filter(Boolean) : []).length} depto(s)
-                                    </span>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="border rounded-xl p-2.5 h-48 flex flex-col justify-between bg-white">
-                                  <div className="space-y-1.5">
-                                    <Input
-                                      value={form.departments}
-                                      onChange={(e) => updateFormField("departments", e.target.value)}
-                                      placeholder="Ej: 101, 102, 103"
-                                      className="h-8 text-xs"
-                                    />
-                                    <p className="text-[10px] text-muted-foreground leading-normal">
-                                      Ingrese los números de departamento separados por coma.
-                                    </p>
-                                  </div>
-                                </div>
-                              )
-                            ) : (
-                              <div className="border border-dashed rounded-xl h-48 flex flex-col items-center justify-center text-center p-3 text-slate-400 bg-slate-50/20">
-                                <p className="text-[11px] font-bold text-slate-600">Seleccione un piso</p>
-                                <p className="text-[10px] text-slate-400 mt-0.5 max-w-[150px] mx-auto leading-normal">
-                                  Elige el piso a la izquierda para cargar los departamentos.
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {floorSelectionMode === "multiple" && (
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold">Pisos *</Label>
-                      <div className="border rounded-xl p-2.5 h-48 overflow-y-auto space-y-1 bg-white scrollbar-thin">
-                        {floorOptions.map((opt) => {
-                          const floor = opt.value;
-                          const isSelected = form.floors.includes(floor);
-                          return (
-                            <div
-                              key={floor}
-                              onClick={() => {
-                                if (editItem) return;
-                                if (isSelected) {
-                                  updateFormField("floors", form.floors.filter(f => f !== floor));
-                                } else {
-                                  updateFormField("floors", [...form.floors, floor]);
-                                }
-                              }}
-                              className={`flex items-center gap-2 text-xs font-bold py-1.5 px-2 rounded-lg border transition-all mb-0.5 ${
-                                editItem ? "cursor-not-allowed opacity-70" : "cursor-pointer"
-                              } ${
-                                isSelected 
-                                  ? "bg-primary/5 border-primary text-primary" 
-                                  : "border-slate-100 hover:bg-slate-50 text-slate-700"
-                              }`}
-                            >
-                              <div className={`h-3.5 w-3.5 border rounded-md flex items-center justify-center transition-colors shrink-0 ${
-                                isSelected ? "bg-primary border-primary text-white" : "border-slate-300"
-                              }`}>
-                                {isSelected && <span className="text-[10px]">✓</span>}
-                              </div>
-                              <span>{floor}</span>
-                              {opt.group && opt.group !== "Torre" && (
-                                <span className="ml-auto text-[9.5px] px-1.5 py-0.5 rounded font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                                  {opt.group}
-                                </span>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+              {isCustomSubterraneo && !editItem && (
+                <div className="pt-2">
+                  <Label className="text-xs">Nombre personalizado de subterráneo / sector</Label>
+                  <Input
+                    value={customSubterraneo}
+                    onChange={(e) => setCustomSubterraneo(e.target.value)}
+                    placeholder="Ej: Subterráneo -3 (Bomba de achique)"
+                    className="h-8 text-xs bg-white mt-1"
+                  />
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Zone 3: EXTERIORES */}
+          {zoneType === "exterior" && (
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
+              <div>
+                <Label className="text-xs font-bold text-slate-800">
+                  Sector Exterior *
+                </Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Selecciona el área exterior, empalme o urbanización correspondiente.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {projectExteriores.map((ext) => {
+                  const isSelected = !isCustomExterior && selectedExterior === ext;
+                  return (
+                    <button
+                      key={ext}
+                      type="button"
+                      onClick={() => {
+                        if (editItem) return;
+                        setIsCustomExterior(false);
+                        setSelectedExterior(ext);
+                      }}
+                      disabled={Boolean(editItem)}
+                      className={cn(
+                        "flex items-center gap-2.5 p-2.5 rounded-lg border text-left text-xs font-semibold transition-all cursor-pointer",
+                        isSelected
+                          ? "bg-primary text-primary-foreground border-primary shadow-xs font-bold"
+                          : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+                        editItem && "cursor-not-allowed opacity-80"
+                      )}
+                    >
+                      <Trees className={cn("w-4 h-4 shrink-0", isSelected ? "text-primary-foreground" : "text-slate-400")} />
+                      <span className="truncate">{ext}</span>
+                      {isSelected && <Check className="w-3.5 h-3.5 ml-auto shrink-0" />}
+                    </button>
+                  );
+                })}
+
+                {!editItem && (
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomExterior(true)}
+                    className={cn(
+                      "flex items-center gap-2 p-2.5 rounded-lg border text-left text-xs font-semibold transition-all border-dashed cursor-pointer",
+                      isCustomExterior
+                        ? "bg-primary/5 text-primary border-primary font-bold"
+                        : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+                    )}
+                  >
+                    <Plus className="w-3.5 h-3.5 shrink-0" />
+                    <span>Otro sector exterior...</span>
+                  </button>
+                )}
+              </div>
+
+              {isCustomExterior && !editItem && (
+                <div className="pt-2">
+                  <Label className="text-xs">Nombre personalizado de sector exterior</Label>
+                  <Input
+                    value={customExterior}
+                    onChange={(e) => setCustomExterior(e.target.value)}
+                    placeholder="Ej: Empalme Eléctrico MT / Transformador"
+                    className="h-8 text-xs bg-white mt-1"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Zone 4: SALAS TÉCNICAS / COMUNES */}
+          {zoneType === "comun" && (
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
+              <div>
+                <Label className="text-xs font-bold text-slate-800">
+                  Sala Técnica o Área Común *
+                </Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Selecciona la sala técnica o espacio común donde se ejecutarán las instalaciones.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {projectAreasComunes.map((com) => {
+                  const isSelected = !isCustomAreaComun && selectedAreaComun === com;
+                  return (
+                    <button
+                      key={com}
+                      type="button"
+                      onClick={() => {
+                        if (editItem) return;
+                        setIsCustomAreaComun(false);
+                        setSelectedAreaComun(com);
+                      }}
+                      disabled={Boolean(editItem)}
+                      className={cn(
+                        "flex items-center gap-2.5 p-2.5 rounded-lg border text-left text-xs font-semibold transition-all cursor-pointer",
+                        isSelected
+                          ? "bg-primary text-primary-foreground border-primary shadow-xs font-bold"
+                          : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+                        editItem && "cursor-not-allowed opacity-80"
+                      )}
+                    >
+                      <Zap className={cn("w-4 h-4 shrink-0", isSelected ? "text-primary-foreground" : "text-slate-400")} />
+                      <span className="truncate">{com}</span>
+                      {isSelected && <Check className="w-3.5 h-3.5 ml-auto shrink-0" />}
+                    </button>
+                  );
+                })}
+
+                {!editItem && (
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomAreaComun(true)}
+                    className={cn(
+                      "flex items-center gap-2 p-2.5 rounded-lg border text-left text-xs font-semibold transition-all border-dashed cursor-pointer",
+                      isCustomAreaComun
+                        ? "bg-primary/5 text-primary border-primary font-bold"
+                        : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+                    )}
+                  >
+                    <Plus className="w-3.5 h-3.5 shrink-0" />
+                    <span>Otra sala o espacio técnico...</span>
+                  </button>
+                )}
+              </div>
+
+              {isCustomAreaComun && !editItem && (
+                <div className="pt-2">
+                  <Label className="text-xs">Nombre personalizado de sala técnica</Label>
+                  <Input
+                    value={customAreaComun}
+                    onChange={(e) => setCustomAreaComun(e.target.value)}
+                    placeholder="Ej: Sala de Tableros Subterráneo 2"
+                    className="h-8 text-xs bg-white mt-1"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Zone 5: VERTICALES */}
+          {zoneType === "vertical" && (
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
+              {towerOnlyOptions.length > 1 && (
+                <div>
+                  <Label className="text-xs font-bold text-slate-800">Torre *</Label>
+                  <Select
+                    value={form.tower || towerOnlyOptions[0]}
+                    onValueChange={(val) => updateFormField("tower", val)}
+                    disabled={Boolean(editItem)}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-white mt-1">
+                      <SelectValue placeholder="Seleccionar torre" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {towerOnlyOptions.map((t) => (
+                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div>
+                <Label className="text-xs font-bold text-slate-800">Tipo de Montante / Riser *</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1.5">
+                  {[
+                    { id: SCOPE_TYPES.VERTICAL_EL, label: "Vertical EL", desc: "Shaft Eléctrico y fuerza", icon: Zap },
+                    { id: SCOPE_TYPES.VERTICAL_TC, label: "Vertical TC", desc: "Telecomunicaciones y red", icon: ArrowUpDown },
+                    { id: SCOPE_TYPES.VERTICAL_CD, label: "Vertical CD", desc: "Corrientes débiles y citofonía", icon: Layers },
+                  ].map((v) => {
+                    const isSelected = verticalSubtype === v.id;
+                    const VIcon = v.icon;
+                    return (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => setVerticalSubtype(v.id)}
+                        disabled={Boolean(editItem)}
+                        className={cn(
+                          "p-2.5 rounded-lg border text-left transition-all cursor-pointer",
+                          isSelected
+                            ? "bg-primary text-primary-foreground border-primary shadow-xs font-bold"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50",
+                          editItem && "cursor-not-allowed opacity-80"
+                        )}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-bold">{v.label}</span>
+                          <VIcon className="w-3.5 h-3.5 opacity-80" />
+                        </div>
+                        <p className={cn("text-[10px]", isSelected ? "text-primary-foreground/90" : "text-muted-foreground")}>
+                          {v.desc}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-2.5 text-xs text-blue-900 flex items-start gap-2">
+                <span className="text-sm">ℹ️</span>
+                <p className="text-[11px] leading-relaxed">
+                  Los montantes verticales se controlan <strong>por torre completa</strong> (metros lineales de escalerilla/bandeja o tendido troncal de riser). No se dividen por piso.
+                </p>
+              </div>
             </div>
           )}
 
