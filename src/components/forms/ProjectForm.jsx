@@ -26,7 +26,6 @@ import { cn } from "@/lib/utils";
 const GENERATOR_FLOORS = [
   "Cubierta",
   ...Array.from({ length: 30 }, (_, i) => `Piso ${30 - i}`),
-  ...Array.from({ length: 5 }, (_, i) => `Subterráneo ${i + 1}`)
 ];
 
 const DEFAULT_SUBTERRANEOS = [
@@ -300,8 +299,13 @@ export default function ProjectForm({ open, onClose, onSave, onDelete, editProje
     }
 
     if (step === 2) {
-      if (selectedFloors.length === 0) {
-        setError("Debe seleccionar al menos un piso.");
+      if (
+        selectedFloors.length === 0 &&
+        selectedSubterraneos.length === 0 &&
+        selectedExteriores.length === 0 &&
+        selectedAreasComunes.length === 0
+      ) {
+        setError("Debe configurar al menos un área, piso o sector para la obra.");
         return;
       }
     }

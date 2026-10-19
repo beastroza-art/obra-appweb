@@ -166,11 +166,14 @@ export default function FilterBar({
       baseFloors = getFloorOptions(filterOptionItems);
     } else {
       const configFloors = safeParseJson(selectedProj.floors, []);
+      const configSubs = safeParseJson(selectedProj.subterraneos, []);
+      const configExts = safeParseJson(selectedProj.exteriores, []);
+      const configComunes = safeParseJson(selectedProj.areas_comunes, []);
       const projectItems = sourceItems.filter(
         (item) => item.project === selectedProj.name,
       );
       const itemFloors = projectItems.flatMap((item) => getFloorList(item.floor));
-      baseFloors = [...new Set([...configFloors, ...itemFloors])].sort(sortFloors);
+      baseFloors = [...new Set([...configFloors, ...configSubs, ...configExts, ...configComunes, ...itemFloors])].sort(sortFloors);
     }
     return [...baseFloors, "Vertical EL", "Vertical TC", "Vertical CD"];
   }, [selectedProj, sourceItems, filterOptionItems]);

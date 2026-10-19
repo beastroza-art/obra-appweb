@@ -308,13 +308,26 @@ export default function MasterItemForm({
     let list = [];
     if (selectedProjectObj) {
       const pFloors = safeParseJson(selectedProjectObj.floors, []);
-      if (pFloors.length > 0) {
-        list = pFloors.map((f) => ({ label: f, value: f }));
+      const pSubs = safeParseJson(selectedProjectObj.subterraneos, []);
+      const pExts = safeParseJson(selectedProjectObj.exteriores, []);
+      const pComunes = safeParseJson(selectedProjectObj.areas_comunes, []);
+
+      const sortedFloors = [...pFloors].sort((a, b) => sortFloors(a, b));
+
+      const items = [
+        ...sortedFloors.map((f) => ({ label: f, value: f, group: "Torre" })),
+        ...pSubs.map((s) => ({ label: s, value: s, group: "Subterráneo" })),
+        ...pExts.map((e) => ({ label: e, value: e, group: "Exterior" })),
+        ...pComunes.map((c) => ({ label: c, value: c, group: "Sala Técnica" })),
+      ];
+
+      if (items.length > 0) {
+        list = items;
       }
     } else {
       list = ALL_FLOOR_OPTIONS;
     }
-    return [...list].sort((a, b) => sortFloors(a.value, b.value));
+    return list;
   }, [selectedProjectObj]);
 
   const deptoOptions = React.useMemo(() => {
@@ -1014,6 +1027,11 @@ export default function MasterItemForm({
                                     {isSelected && <span className="text-[10px]">✓</span>}
                                   </div>
                                   <span>{floor}</span>
+                                  {opt.group && opt.group !== "Torre" && (
+                                    <span className="ml-auto text-[9.5px] px-1.5 py-0.5 rounded font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                      {opt.group}
+                                    </span>
+                                  )}
                                 </div>
                               );
                             })}
@@ -1168,6 +1186,11 @@ export default function MasterItemForm({
                                 {isSelected && <span className="text-[10px]">✓</span>}
                               </div>
                               <span>{floor}</span>
+                              {opt.group && opt.group !== "Torre" && (
+                                <span className="ml-auto text-[9.5px] px-1.5 py-0.5 rounded font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                  {opt.group}
+                                </span>
+                              )}
                             </div>
                           );
                         })}
