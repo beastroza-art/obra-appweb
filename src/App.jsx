@@ -14,6 +14,7 @@ import Users from './pages/Users';
 import Activities from './pages/Activities';
 import Restrictions from './pages/Restrictions';
 import ProductivityAnalytics from './pages/ProductivityAnalytics';
+import TabletFaena from './pages/TabletFaena';
 import { PermissionsProvider } from './lib/PermissionsContext';
 import { ProjectFilterProvider } from './lib/ProjectFilterContext';
 import Login from './pages/Login';
@@ -41,6 +42,8 @@ const AuthenticatedApp = () => {
       <Route path="/login" element={<Login />} />
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/faena" element={<TabletFaena />} />
+        <Route path="/tablet" element={<Navigate to="/faena" replace />} />
         <Route path="/vista-3d" element={<Vista3D />} />
         <Route path="/master-plan" element={<MasterPlan />} />
         <Route path="/item/:id" element={<ItemDetail />} />

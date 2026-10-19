@@ -447,6 +447,183 @@ router.get("/:id", (req, res) => {
   });
 });
 
+router.post("/faena", (req, res) => {
+  const {
+    project,
+    log_type = "avance", // 'avance' | 'bloqueo'
+    zone_type = "torre",
+    tower = "Torre 1",
+    floor = "",
+    recinto_libre = "",
+    activity = "Instalaciones Eléctricas",
+    stage_reached = "",
+    cause_category = "",
+    hours_lost = 0,
+    hours_worked = 0,
+    executed_today = 0,
+    crew_workers = [],
+    crew_name = "Cuadrilla Faena",
+    supervisor = "",
+    capataz_name = "",
+    capataz_signature = "",
+    observations = "",
+    photos = [],
+    date = new Date().toISOString().split("T")[0]
+  } = req.body;
+
+  if (!project) {
+    return res.status(400).json({ error: "Debe seleccionar la obra." });
+  }
+
+  const isBloqueo = log_type === "bloqueo";
+  if (isBloqueo && !cause_category && !observations) {
+    return res.status(400).json({ error: "Debe indicar el motivo o causa del bloqueo." });
+  }
+
+  const savedSignature = saveBase64Signature(capataz_signature);
+  const locationText = recinto_libre || floor || zone_type || "General";
+  const itemActivity = activity || (isBloqueo ? `Restricción: ${cause_category || 'Bloqueo'}` : 'Avance General');
+
+  // Check if an existing master_item can be associated
+  db.get(
+    "SELECT id, planned_qty, executed_qty FROM master_items WHERE LOWER(TRIM(project)) = LOWER(TRIM(?)) AND (LOWER(TRIM(floor)) = LOWER(TRIM(?)) OR LOWER(TRIM(zone_type)) = LOWER(TRIM(?))) LIMIT 1",
+    [project, locationText, zone_type],
+    (findErr, matchedItem) => {
+      if (findErr) return res.status(500).json({ error: findErr.message });
+
+      const continueWithItem = (itemId) => {
+        const hasRestriction = isBloqueo ? 1 : 0;
+        const restrictionDetail = isBloqueo ? (cause_category ? `${cause_category}: ${observations}` : observations) : "";
+        const isZero = isBloqueo ? 1 : (Number(executed_today) === 0 ? 1 : 0);
+
+        const sql = `
+          INSERT INTO daily_logs (
+            master_item_id, project, tower, floor, activity, date,
+            executed_today, supervisor, crew_name, crew_workers,
+            hours_worked, has_restriction, restriction_detail,
+            observations, capataz_name, capataz_signature,
+            is_zero_progress, log_type, cause_category, hours_lost,
+            stage_reached, recinto_libre
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+
+        const values = [
+          itemId,
+          project,
+          tower || "Torre 1",
+          floor || locationText,
+          itemActivity,
+          date,
+          toNumber(executed_today),
+          supervisor || "",
+          crew_name || "",
+          stringifyArray(crew_workers),
+          toNumber(hours_worked),
+          hasRestriction,
+          restrictionDetail,
+          observations || "",
+          capataz_name || "",
+          savedSignature || "",
+          isZero,
+          log_type,
+          cause_category || "",
+          toNumber(hours_lost),
+          stage_reached || "",
+          recinto_libre || ""
+        ];
+
+        db.run(sql, values, function (logErr) {
+          if (logErr) return res.status(500).json({ error: logErr.message });
+          const logId = this.lastID;
+
+          // Insert photos
+          if (Array.isArray(photos) && photos.length > 0) {
+            const photoSql = `
+              INSERT INTO site_photos (daily_log_id, master_item_id, file_url, description, label, date, photo_type, watermark_text)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+            const stmtPhoto = db.prepare(photoSql);
+            photos.forEach((p) => {
+              stmtPhoto.run(
+                logId,
+                itemId,
+                p.file_url || p.url || "",
+                p.description || observations || (isBloqueo ? `Bloqueo: ${cause_category}` : "Avance"),
+                p.label || (isBloqueo ? "restriccion" : "avance"),
+                p.date || date,
+                p.photo_type || log_type,
+                p.watermark_text || ""
+              );
+            });
+            stmtPhoto.finalize();
+          }
+
+          // Update worker current activity
+          if (crew_workers && crew_workers.length > 0) {
+            const fullRuta = `${tower || "Torre 1"} / ${locationText} / ${itemActivity}`;
+            updateWorkersCurrentActivity(db, crew_workers, project, fullRuta);
+          }
+
+          // Update item status if appropriate
+          if (isBloqueo) {
+            db.run("UPDATE master_items SET status = 'bloqueado', release_status = 'no_liberado' WHERE id = ?", [itemId]);
+          } else if (stage_reached && (stage_reached.includes("100") || stage_reached.toLowerCase().includes("terminado"))) {
+            db.run("UPDATE master_items SET status = 'completado', release_status = 'terminado', executed_qty = planned_qty WHERE id = ?", [itemId]);
+          } else {
+            db.run("UPDATE master_items SET status = 'en_ejecucion', release_status = 'liberado' WHERE id = ?", [itemId]);
+          }
+
+          return res.status(201).json({
+            success: true,
+            log_id: logId,
+            master_item_id: itemId,
+            message: isBloqueo
+              ? "Paralización por bloqueo de constructora registrada exitosamente."
+              : "Avance de obra registrado exitosamente."
+          });
+        });
+      };
+
+      if (matchedItem) {
+        continueWithItem(matchedItem.id);
+      } else {
+        // Create an ad-hoc master item so tracking is seamless
+        const initialStatus = isBloqueo ? "bloqueado" : "en_ejecucion";
+        const initialRelease = isBloqueo ? "no_liberado" : "liberado";
+        const planned = 100;
+        const exec = isBloqueo ? 0 : (stage_reached.includes("100") ? 100 : 25);
+
+        db.run(
+          `INSERT INTO master_items (
+            project, tower, floor, scope_type, activity, zone_type,
+            planned_qty, executed_qty, unit, status, release_status, stage_reached
+          ) VALUES (?, ?, ?, 'piso', ?, ?, ?, ?, 'und', ?, ?, ?)`,
+          [
+            project,
+            tower || "Torre 1",
+            locationText,
+            itemActivity,
+            zone_type || "torre",
+            planned,
+            exec,
+            initialStatus,
+            initialRelease,
+            stage_reached || ""
+          ],
+          function (createItemErr) {
+            if (createItemErr) {
+              console.error("Error creating ad-hoc item:", createItemErr.message);
+              return continueWithItem(1);
+            }
+            continueWithItem(this.lastID);
+          }
+        );
+      }
+    }
+  );
+});
+
 router.post("/", (req, res) => {
   const {
     master_item_id,

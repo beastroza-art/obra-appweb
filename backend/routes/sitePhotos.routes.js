@@ -47,7 +47,7 @@ router.get("/:id", (req, res) => {
 });
 
 router.post("/", (req, res) => {
-  const { daily_log_id, master_item_id, file_url, description, label, date } =
+  const { daily_log_id, master_item_id, file_url, description, label, date, photo_type, watermark_text } =
     req.body;
 
   const insertPhoto = () => {
@@ -58,9 +58,11 @@ router.post("/", (req, res) => {
         file_url,
         description,
         label,
-        date
+        date,
+        photo_type,
+        watermark_text
       )
-      VALUES (?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     db.run(
@@ -72,6 +74,8 @@ router.post("/", (req, res) => {
         description || "",
         label || "",
         date || "",
+        photo_type || "avance",
+        watermark_text || "",
       ],
       function (err) {
         if (err) return res.status(500).json({ error: err.message });
@@ -84,6 +88,8 @@ router.post("/", (req, res) => {
           description: description || "",
           label: label || "",
           date: date || "",
+          photo_type: photo_type || "avance",
+          watermark_text: watermark_text || "",
         });
       }
     );
