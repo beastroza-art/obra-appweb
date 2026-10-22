@@ -49,6 +49,9 @@ const AuthenticatedApp = () => {
         <Route path="/activities" element={<Activities />} />
         <Route path="/restrictions" element={<Restrictions />} />
         <Route path="/analytics" element={<ProductivityAnalytics />} />
+        {/* Redirecciones de rutas obsoletas hacia el Dashboard principal */}
+        <Route path="/faena" element={<Navigate to="/" replace />} />
+        <Route path="/tablet" element={<Navigate to="/" replace />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
