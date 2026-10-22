@@ -15,7 +15,6 @@ import {
   TrendingUp,
   Box,
   ListChecks,
-  Flame,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -28,7 +27,6 @@ export default function AppLayout() {
 
   const navItems = [
     { path: "/", label: "Dashboard", icon: LayoutDashboard },
-    { path: "/faena", label: "Modo Faena", icon: Flame },
     ...(isAdmin
       ? [{ path: "/vista-3d", label: "Vista 3D", icon: Box }]
       : []),
@@ -81,14 +79,6 @@ export default function AppLayout() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <Link
-              to="/faena"
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-black bg-orange-600 hover:bg-orange-500 text-white shadow-md transition-all shrink-0"
-            >
-              <Flame className="w-3.5 h-3.5" />
-              <span>Modo Faena</span>
-            </Link>
-
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10">
               <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
               <span className="text-xs font-medium">

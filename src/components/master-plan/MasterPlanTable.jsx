@@ -643,74 +643,86 @@ export default function MasterPlanTable({
                       </TableCell>
 
                       <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                            >
-                              <MoreHorizontal className="h-3.5 w-3.5" />
-                            </Button>
-                          </DropdownMenuTrigger>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                            title="Registrar Reporte Diario / Avance"
+                            onClick={() => safeOnDailyLog(row)}
+                          >
+                            <FileText className="h-4 w-4" />
+                          </Button>
 
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem asChild>
-                              <Link
-                                to={`/item/${row.id}`}
-                                state={{ from: "/master-plan" }}
-                                className="flex items-center gap-2"
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
                               >
-                                <Eye className="h-3.5 w-3.5" />
-                                Ver Detalle
-                              </Link>
-                            </DropdownMenuItem>
+                                <MoreHorizontal className="h-3.5 w-3.5" />
+                              </Button>
+                            </DropdownMenuTrigger>
 
-                            <DropdownMenuItem
-                              onClick={() => safeOnDailyLog(row)}
-                              className="gap-2 hidden"
-                            >
-                              <FileText className="h-3.5 w-3.5" />
-                              Reporte Diario
-                            </DropdownMenuItem>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem asChild>
+                                <Link
+                                  to={`/item/${row.id}`}
+                                  state={{ from: "/master-plan" }}
+                                  className="flex items-center gap-2"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                  Ver Detalle
+                                </Link>
+                              </DropdownMenuItem>
 
-                            <DropdownMenuItem
-                              onClick={() => safeOnEdit(row)}
-                              className="gap-2"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              Editar
-                            </DropdownMenuItem>
-                            {onToggleBlock && (
                               <DropdownMenuItem
-                                onClick={() => onToggleBlock(row)}
+                                onClick={() => safeOnDailyLog(row)}
                                 className="gap-2"
                               >
-                                {row.status === "bloqueado" || row.status === "piso bloqueado" ? (
-                                  <>
-                                    <Unlock className="h-3.5 w-3.5" />
-                                    Desbloquear
-                                  </>
-                                ) : (
-                                  <>
-                                    <Lock className="h-3.5 w-3.5" />
-                                    Bloquear
-                                  </>
-                                )}
+                                <FileText className="h-3.5 w-3.5" />
+                                Reporte Diario
                               </DropdownMenuItem>
-                            )}
 
-                            {canDelete && (
                               <DropdownMenuItem
-                                onClick={() => safeOnDelete(row)}
-                                className="gap-2 text-destructive"
+                                onClick={() => safeOnEdit(row)}
+                                className="gap-2"
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
-                                Borrar
+                                <Pencil className="h-3.5 w-3.5" />
+                                Editar
                               </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              {onToggleBlock && (
+                                <DropdownMenuItem
+                                  onClick={() => onToggleBlock(row)}
+                                  className="gap-2"
+                                >
+                                  {row.status === "bloqueado" || row.status === "piso bloqueado" ? (
+                                    <>
+                                      <Unlock className="h-3.5 w-3.5" />
+                                      Desbloquear
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Lock className="h-3.5 w-3.5" />
+                                      Bloquear
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
+                              )}
+
+                              {canDelete && (
+                                <DropdownMenuItem
+                                  onClick={() => safeOnDelete(row)}
+                                  className="gap-2 text-destructive"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Borrar
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </TableCell>
                     </TableRow>
 

@@ -49,6 +49,7 @@ import { AutocompleteInput } from "@/components/ui/autocomplete-input";
 import ItemScopeSummary from "@/components/common/ItemScopeSummary";
 
 import SignaturePad from "./SignaturePad";
+import { stampPhotoWatermark } from "@/utils/watermark";
 
 const SERVER_URL = (
   typeof window !== "undefined" && window.location.port !== "3001"
@@ -1126,14 +1127,47 @@ export default function DailyLogForm({
       setUploadingPhotos(true);
       setError("");
 
+      const currentFloorData = isMultiFloor && activeFloor ? floorData[activeFloor] : null;
+      const currentHasRestriction = isMultiFloor ? Boolean(currentFloorData?.has_restriction) : Boolean(form.has_restriction);
+      const currentIsZero = isMultiFloor ? Boolean(currentFloorData?.is_zero_progress) : Boolean(form.is_zero_progress);
+      const currentRestrictionDetail = isMultiFloor ? (currentFloorData?.restriction_detail || "") : (form.restriction_detail || "");
+      const isBlocked = currentIsZero || currentHasRestriction;
+
+      const currentTower = resolvedMasterItem?.tower ? `${resolvedMasterItem.tower} - ` : "";
+      const currentSector = isMultiFloor && activeFloor ? activeFloor : (resolvedMasterItem?.floor || "Sector General");
+      const currentDptos = resolvedMasterItem?.departments ? ` (Dptos: ${resolvedMasterItem.departments})` : "";
+      const currentLoc = `${currentTower}${currentSector}${currentDptos}`;
+
+      const currentAuthor = form.capataz_name || form.supervisor || userName || "Capataz en Faena";
+      const currentProjectName = project?.name || resolvedMasterItem?.project || "Obra";
+      const currentActivity = resolvedMasterItem?.activity || "";
+
       const uploadedList = [];
       for (const file of files) {
-        const uploadedPhoto = await api.uploadPhoto(file);
+        let fileToUpload = file;
+        let watermarkSummary = "";
+        try {
+          const stamped = await stampPhotoWatermark(file, {
+            projectName: currentProjectName,
+            location: currentLoc,
+            author: currentAuthor,
+            type: isBlocked ? "BLOQUEO" : "AVANCE",
+            cause: currentRestrictionDetail,
+            timestamp: new Date(),
+            note: currentActivity,
+          });
+          fileToUpload = stamped.file;
+          watermarkSummary = stamped.summaryText;
+        } catch (stampErr) {
+          console.warn("No se pudo estampar sello de agua, subiendo foto original:", stampErr);
+        }
+
+        const uploadedPhoto = await api.uploadPhoto(fileToUpload);
         uploadedList.push({
           url: uploadedPhoto.file_url,
           file_url: uploadedPhoto.file_url,
-          description: "",
-          file_name: uploadedPhoto.original_name || file.name,
+          description: watermarkSummary || "",
+          file_name: uploadedPhoto.original_name || fileToUpload.name,
           filename: uploadedPhoto.filename,
           mimetype: uploadedPhoto.mimetype,
           size: uploadedPhoto.size,
@@ -2640,6 +2674,45 @@ export default function DailyLogForm({
                         Explica la causa del paro o restricción
                       </span>
                     </div>
+
+                    {/* Botones de causas rápidas de respaldo contractual */}
+                    <div className="space-y-1.5 rounded-lg border border-rose-200/60 bg-rose-50/50 p-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-rose-900 flex items-center gap-1">
+                          🛡️ Respaldo Contractual Rápido
+                        </span>
+                        <span className="text-[10px] text-rose-600">
+                          Toca una causa para rellenar
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          "Falta de frente civil / losa no entregada",
+                          "Interferencia de otra especialidad / sector bloqueado",
+                          "Sin energía eléctrica de faena o corte de agua",
+                          "Planos no aprobados / pendiente resolución RFI",
+                          "Falta de materiales o quiebre de stock proveedor",
+                          "Clima adverso / lluvia o humedad no permitida",
+                        ].map((cause) => (
+                          <button
+                            key={cause}
+                            type="button"
+                            onClick={() => {
+                              const current = displayedRestrictionDetail || "";
+                              if (!current.trim()) {
+                                handleRestrictionDetailChange(cause);
+                              } else if (!current.includes(cause)) {
+                                handleRestrictionDetailChange(`${current.trim()}; ${cause}`);
+                              }
+                            }}
+                            className="inline-flex items-center rounded-md border border-rose-300 bg-white px-2 py-1 text-[11px] font-medium text-rose-800 shadow-2xs hover:bg-rose-100 hover:border-rose-400 transition-colors cursor-pointer"
+                          >
+                            + {cause}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     <Textarea
                       value={displayedRestrictionDetail}
                       onChange={(e) =>
@@ -2666,15 +2739,20 @@ export default function DailyLogForm({
 
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <Label className="flex items-center gap-1.5 text-xs font-semibold">
-                    <Camera className="h-3.5 w-3.5" />
-                    Fotos del reporte {isMultiFloor ? `(${activeFloor})` : ""}{" "}
-                    {REQUIRE_PHOTO ? (
-                      <span className="text-destructive">*</span>
-                    ) : (
-                      <span className="text-muted-foreground">(opcional)</span>
-                    )}
-                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Label className="flex items-center gap-1.5 text-xs font-semibold">
+                      <Camera className="h-3.5 w-3.5" />
+                      Fotos del reporte {isMultiFloor ? `(${activeFloor})` : ""}{" "}
+                      {REQUIRE_PHOTO ? (
+                        <span className="text-destructive">*</span>
+                      ) : (
+                        <span className="text-muted-foreground">(opcional)</span>
+                      )}
+                    </Label>
+                    <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 font-medium">
+                      🛡️ Sello legal indeleble
+                    </span>
+                  </div>
 
                   <div className="flex gap-2">
                     <Button
@@ -2744,10 +2822,22 @@ export default function DailyLogForm({
                                 className="h-10 w-10 shrink-0 rounded-md object-cover"
                               />
                               <div className="flex flex-col">
-                                <span className="text-xs font-semibold">
-                                  Foto {index + 1}
-                                </span>
-                                <span className="max-w-[180px] truncate text-[10px] text-muted-foreground">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-semibold">
+                                    Foto {index + 1}
+                                  </span>
+                                  {photo.description?.includes("[BLOQUEO]") && (
+                                    <span className="bg-rose-100 text-rose-700 text-[9px] font-bold px-1.5 py-0.2 rounded border border-rose-300">
+                                      BLOQUEO
+                                    </span>
+                                  )}
+                                  {photo.description?.includes("[AVANCE]") && (
+                                    <span className="bg-emerald-100 text-emerald-700 text-[9px] font-bold px-1.5 py-0.2 rounded border border-emerald-300">
+                                      SELLADA
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="max-w-[220px] truncate text-[10px] text-muted-foreground" title={photo.description}>
                                   {photo.description || "Sin descripción"}
                                 </span>
                               </div>
