@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { usePermissions } from "@/lib/PermissionsContext";
 import {
+  Building,
   Building2,
   Layers,
   SlidersHorizontal,
@@ -32,14 +33,12 @@ import {
   ChevronRight,
   X,
   AlertTriangle,
-  ShieldCheck,
   Sparkles,
   Info,
   Calendar,
   UserCheck,
   MapPin,
   FileText,
-  DoorOpen,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -138,7 +137,7 @@ export default function ProjectForm({
   onDelete,
   editProject = null,
 }) {
-  const { canCreateProjects, canDelete } = usePermissions();
+  const { canDelete } = usePermissions();
   const isEditing = Boolean(editProject);
 
   const { data: projects = [] } = useQuery({
