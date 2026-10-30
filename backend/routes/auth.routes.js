@@ -4,6 +4,14 @@ const db = require("../db/connection");
 
 const router = express.Router();
 
+function normalizeStr(str) {
+  return String(str || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 router.post("/login", (req, res) => {
   const { email, password } = req.body;
 
@@ -11,11 +19,27 @@ router.post("/login", (req, res) => {
     return res.status(400).json({ error: "Email y contraseña son requeridos." });
   }
 
-  db.get(
-    "SELECT * FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) AND active = 1",
-    [email],
-    async (err, user) => {
+  // Permite autenticarse por email exacto, prefijo de correo (ej: 'bap') o nombre (ej: 'benjamin', 'Benjamín Astroza')
+  db.all(
+    "SELECT * FROM users WHERE active = 1",
+    [],
+    async (err, users) => {
       if (err) return res.status(500).json({ error: err.message });
+
+      const normTerm = normalizeStr(email);
+
+      const user = (users || []).find((u) => {
+        const uEmail = normalizeStr(u.email);
+        const uEmailPrefix = uEmail.split("@")[0];
+        const uName = normalizeStr(u.full_name);
+
+        return (
+          uEmail === normTerm ||
+          uEmailPrefix === normTerm ||
+          uName === normTerm ||
+          (normTerm.length >= 3 && uName.includes(normTerm))
+        );
+      });
 
       if (!user) {
         return res.status(401).json({ error: "Credenciales inválidas." });
@@ -42,17 +66,32 @@ router.post("/login", (req, res) => {
 });
 
 router.get("/me", (req, res) => {
-  const email = req.headers["x-user-email"];
+  const emailHeader = req.headers["x-user-email"];
 
-  if (!email) {
+  if (!emailHeader) {
     return res.status(401).json({ error: "No autorizado. Falta cabecera x-user-email." });
   }
 
-  db.get(
-    "SELECT * FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) AND active = 1",
-    [email],
-    (err, user) => {
+  const normTerm = normalizeStr(emailHeader);
+
+  db.all(
+    "SELECT * FROM users WHERE active = 1",
+    [],
+    (err, users) => {
       if (err) return res.status(500).json({ error: err.message });
+
+      const user = (users || []).find((u) => {
+        const uEmail = normalizeStr(u.email);
+        const uEmailPrefix = uEmail.split("@")[0];
+        const uName = normalizeStr(u.full_name);
+
+        return (
+          uEmail === normTerm ||
+          uEmailPrefix === normTerm ||
+          uName === normTerm ||
+          (normTerm.length >= 3 && uName.includes(normTerm))
+        );
+      });
 
       if (!user) {
         return res.status(404).json({ error: "Usuario no encontrado o inactivo." });

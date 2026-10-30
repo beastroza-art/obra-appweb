@@ -144,15 +144,15 @@ export default function Login() {
 
               <form className="space-y-5" onSubmit={handleSubmit}>
                 <div className="space-y-2">
-                  <Label htmlFor="email">Correo electrónico</Label>
+                  <Label htmlFor="email">Correo electrónico o Usuario</Label>
                   <div className="relative">
                     <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
                       id="email"
-                      type="email"
-                      autoComplete="email"
+                      type="text"
+                      autoComplete="username"
                       className="h-11 pl-9"
-                      placeholder="correo@dgc.cl"
+                      placeholder="bap@dgcelectricidad.cl o benjamin"
                       value={formData.email}
                       onChange={(event) =>
                         setFormData((current) => ({
