@@ -19,13 +19,7 @@ import {
 } from "@/components/ui/select";
 import { usePermissions } from "@/lib/PermissionsContext";
 import {
-  Building,
   Building2,
-  Layers,
-  SlidersHorizontal,
-  Car,
-  Trees,
-  Zap,
   Plus,
   Trash2,
   Check,
@@ -34,9 +28,6 @@ import {
   ArrowRight,
   X,
   AlertTriangle,
-  Sparkles,
-  Calendar,
-  UserCheck,
   HardHat,
   MapPin,
   Copy,
@@ -46,32 +37,33 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-// Presets para salas técnicas y recintos especiales
+// Presets limpios para salas técnicas y recintos especiales (sin emojis recargados)
 const PRESET_SALAS_TECNICAS = [
-  { id: "tgbt", name: "Sala Eléctrica Principal (TGBT)", icon: "⚡", tag: "Eléctrica" },
-  { id: "bombas", name: "Sala de Bombas de Agua Potable", icon: "💧", tag: "Sanitaria" },
-  { id: "generador", name: "Sala de Grupo Electrógeno", icon: "🔋", tag: "Fuerza" },
-  { id: "conserjeria", name: "Hall Principal / Conserjería", icon: "🏢", tag: "Acceso" },
-  { id: "medidores", name: "Sala de Medidores Eléctricos", icon: "📦", tag: "Eléctrica" },
-  { id: "rack", name: "Sala de RACK / CCTV / Citofonía", icon: "📶", tag: "Comunicaciones" },
-  { id: "basuras", name: "Sala de Basuras / Reciclaje", icon: "♻️", tag: "Servicios" },
-  { id: "calderas", name: "Sala de Calderas / Termos", icon: "🔥", tag: "Clima" },
+  { id: "tgbt", name: "Sala Eléctrica Principal (TGBT)", tag: "Eléctrica" },
+  { id: "bombas", name: "Sala de Bombas de Agua Potable", tag: "Sanitaria" },
+  { id: "generador", name: "Sala de Grupo Electrógeno", tag: "Fuerza" },
+  { id: "conserjeria", name: "Hall Principal / Conserjería", tag: "Acceso" },
+  { id: "medidores", name: "Sala de Medidores Eléctricos", tag: "Eléctrica" },
+  { id: "rack", name: "Sala de RACK / CCTV / Citofonía", tag: "Comunicaciones" },
+  { id: "basuras", name: "Sala de Basuras / Reciclaje", tag: "Servicios" },
+  { id: "calderas", name: "Sala de Calderas / Termos", tag: "Clima" },
 ];
 
 const PRESET_EXTERIORES = [
-  { id: "alumbrado", name: "Alumbrado Perimetral Exterior", icon: "💡" },
-  { id: "empalme", name: "Canalización de Empalme Eléctrico", icon: "🔌" },
-  { id: "camaras", name: "Cámaras de Paso y Ductos Exteriores", icon: "📦" },
-  { id: "cctv_ext", name: "Postes y Cámaras CCTV Perimetrales", icon: "📹" },
+  { id: "alumbrado", name: "Alumbrado Perimetral Exterior" },
+  { id: "empalme", name: "Canalización de Empalme Eléctrico" },
+  { id: "camaras", name: "Cámaras de Paso y Ductos Exteriores" },
+  { id: "cctv_ext", name: "Postes y Cámaras CCTV Perimetrales" },
 ];
 
 const TOWER_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
 
+// Generar departamentos: máximo 30 departamentos por piso
 function generateDepartmentsForFloor(floorName, count = 8) {
   const match = floorName.match(/Piso\s+(\d+)/i);
   if (!match) return [];
   const floorNum = parseInt(match[1], 10);
-  const total = Math.max(0, Math.min(Number(count) || 0, 50));
+  const total = Math.max(0, Math.min(Number(count) || 0, 30));
 
   return Array.from({ length: total }, (_, i) => {
     const depNum = i + 1;
@@ -80,10 +72,11 @@ function generateDepartmentsForFloor(floorName, count = 8) {
   });
 }
 
+// Generar pisos: no más de 15 pisos
 function generateTowerFloorList(tower) {
   const list = [];
-  const start = Math.min(Number(tower.startFloor) || 1, Number(tower.endFloor) || 1);
-  const end = Math.max(Number(tower.startFloor) || 1, Number(tower.endFloor) || 1);
+  const start = Math.max(1, Math.min(15, Number(tower.startFloor) || 1));
+  const end = Math.max(start, Math.min(15, Number(tower.endFloor) || 1));
 
   for (let i = start; i <= end; i++) {
     list.push(`Piso ${i}`);
@@ -94,12 +87,12 @@ function generateTowerFloorList(tower) {
   return list;
 }
 
+// Proyectar siempre hasta 30 casillas de departamentos disponibles por piso
 function getCandidateDepartments(floorName, existingSelected = []) {
   const match = floorName.match(/Piso\s+(\d+)/i);
   if (!match) return existingSelected;
   const floorNum = parseInt(match[1], 10);
 
-  // Detectar el mayor sufijo numérico para proyectar siempre casillas disponibles
   let maxSuffix = 0;
   (existingSelected || []).forEach((dep) => {
     const matchDep = String(dep).match(/\d+$/);
@@ -110,7 +103,8 @@ function getCandidateDepartments(floorName, existingSelected = []) {
     }
   });
 
-  const baseCount = Math.max(16, maxSuffix + 4);
+  // Base fija de 30 casillas (o más si hay un depto personalizado superior)
+  const baseCount = Math.max(30, maxSuffix);
   const candidates = new Set();
   for (let i = 1; i <= baseCount; i++) {
     const formatted = i < 10 ? `0${i}` : `${i}`;
@@ -129,8 +123,9 @@ function getCandidateDepartments(floorName, existingSelected = []) {
 function createDefaultTower(index = 0) {
   const letter = TOWER_LETTERS[index] || `${index + 1}`;
   const startFloor = 1;
-  const endFloor = 15;
+  const endFloor = 15; // No más de 15 pisos
   const hasCubierta = true;
+  const defaultDepsCount = 8; // Hasta 30 deptos
 
   const tower = {
     id: `tower-${index + 1}-${Date.now()}`,
@@ -138,12 +133,13 @@ function createDefaultTower(index = 0) {
     startFloor,
     endFloor,
     hasCubierta,
+    defaultDepsCount,
     departments: {},
   };
 
   const floors = generateTowerFloorList(tower);
   floors.forEach((f) => {
-    tower.departments[f] = f === "Cubierta" ? [] : generateDepartmentsForFloor(f, 8);
+    tower.departments[f] = f === "Cubierta" ? [] : generateDepartmentsForFloor(f, defaultDepsCount);
   });
 
   return tower;
@@ -280,7 +276,14 @@ export default function ProjectForm({
       setVerticalCD(Number(editProject.vertical_cd_count || 0) > 0);
 
       if (parsedDeps.__towers_config__ && Array.isArray(parsedDeps.__towers_config__)) {
-        setTowers(parsedDeps.__towers_config__);
+        // Asegurar que pisos no excedan 15
+        const sanitized = parsedDeps.__towers_config__.map((t) => ({
+          ...t,
+          startFloor: Math.max(1, Math.min(15, Number(t.startFloor) || 1)),
+          endFloor: Math.max(1, Math.min(15, Number(t.endFloor) || 15)),
+          defaultDepsCount: Math.max(1, Math.min(30, Number(t.defaultDepsCount) || 8)),
+        }));
+        setTowers(sanitized);
       } else {
         const count = Math.max(1, Number(editProject.tower_count) || 1);
         const parsedFloors = safeParseJson(editProject.floors, []);
@@ -296,8 +299,9 @@ export default function ProjectForm({
             id: `tower-${i + 1}`,
             name: count > 1 ? `Torre ${TOWER_LETTERS[i] || i + 1}` : "Torre 1",
             startFloor: 1,
-            endFloor: maxFloorNum || 15,
+            endFloor: Math.min(15, maxFloorNum || 15), // Máximo 15 pisos
             hasCubierta: rawFloors.some((f) => /cubierta|azotea/i.test(f)),
+            defaultDepsCount: 8,
             departments: {},
           };
 
@@ -379,20 +383,28 @@ export default function ProjectForm({
 
   const activeTower = towers[activeTowerIndex] || towers[0];
 
-  // Actualizar torre activa y sincronizar sus pisos
+  // Actualizar torre activa y sincronizar sus pisos (con límite de 15 pisos)
   const updateActiveTower = (field, value) => {
     setTowers((prev) => {
       const next = [...prev];
       if (next[activeTowerIndex]) {
+        let parsedVal = value;
+        if (field === "startFloor") {
+          parsedVal = Math.max(1, Math.min(15, parseInt(value, 10) || 1));
+        } else if (field === "endFloor") {
+          parsedVal = Math.max(1, Math.min(15, parseInt(value, 10) || 1));
+        }
+
         const updated = {
           ...next[activeTowerIndex],
-          [field]: value,
+          [field]: parsedVal,
         };
 
         if (field === "startFloor" || field === "endFloor" || field === "hasCubierta") {
           const newFloors = generateTowerFloorList(updated);
           const currentDeps = updated.departments || {};
           const syncedDeps = {};
+          const defaultCount = updated.defaultDepsCount || 8;
 
           newFloors.forEach((f) => {
             if (f === "Cubierta") {
@@ -400,13 +412,37 @@ export default function ProjectForm({
             } else if (currentDeps[f] && currentDeps[f].length > 0) {
               syncedDeps[f] = currentDeps[f];
             } else {
-              syncedDeps[f] = generateDepartmentsForFloor(f, 8);
+              syncedDeps[f] = generateDepartmentsForFloor(f, defaultCount);
             }
           });
           updated.departments = syncedDeps;
         }
 
         next[activeTowerIndex] = updated;
+      }
+      return next;
+    });
+  };
+
+  // Actualizar cantidad de departamentos por piso para toda la torre activa (hasta 30)
+  const updateTowerDefaultDeps = (countVal) => {
+    const count = Math.min(30, Math.max(1, parseInt(countVal, 10) || 1));
+    setTowers((prev) => {
+      const next = [...prev];
+      if (next[activeTowerIndex]) {
+        const tower = { ...next[activeTowerIndex] };
+        tower.defaultDepsCount = count;
+        const towerDeps = { ...(tower.departments || {}) };
+        const towerFloors = generateTowerFloorList(tower);
+
+        towerFloors.forEach((floor) => {
+          if (floor !== "Cubierta") {
+            towerDeps[floor] = generateDepartmentsForFloor(floor, count);
+          }
+        });
+
+        tower.departments = towerDeps;
+        next[activeTowerIndex] = tower;
       }
       return next;
     });
@@ -443,9 +479,9 @@ export default function ProjectForm({
     });
   };
 
-  // Aplicar cantidad exacta de departamentos
+  // Aplicar cantidad exacta de departamentos en el piso activo (hasta 30)
   const applyPresetCount = (count) => {
-    const deps = generateDepartmentsForFloor(activeFloorName, count);
+    const deps = generateDepartmentsForFloor(activeFloorName, Math.min(30, count));
     setTowers((prev) => {
       const next = [...prev];
       const tower = { ...next[activeTowerIndex] };
@@ -654,6 +690,11 @@ export default function ProjectForm({
 
     setError("");
     setStep(2);
+
+    // Asegurar que al entrar al paso 2 se seleccione un piso habitacional (Piso 1) y NO Cubierta
+    const currentFloors = generateTowerFloorList(activeTower);
+    const firstResidential = currentFloors.find((f) => f !== "Cubierta") || "Piso 1";
+    setActiveFloorName(firstResidential);
   };
 
   // Guardar proyecto
@@ -714,7 +755,7 @@ export default function ProjectForm({
     }
   };
 
-  // Generar lista de pisos ordenada de arriba a abajo (Cubierta, Piso N ... Piso 1)
+  // Generar lista de pisos ordenada de arriba a abajo (Cubierta, Piso 15 ... Piso 1)
   const currentTowerFloors = useMemo(() => {
     const raw = generateTowerFloorList(activeTower);
     const hasCub = raw.includes("Cubierta");
@@ -735,41 +776,41 @@ export default function ProjectForm({
         {/* LÍNEA DECORATIVA SUPERIOR */}
         <div className="h-1.5 w-full bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 shrink-0" />
 
-        {/* ENCABEZADO MODERNO Y ELEGANTE */}
-        <DialogHeader className="border-b border-slate-200/80 bg-slate-50/70 px-6 sm:px-8 py-4 shrink-0">
+        {/* ENCABEZADO MODERNO Y LIMPIO */}
+        <DialogHeader className="border-b border-slate-200/80 bg-slate-50/70 px-6 sm:px-8 py-3.5 shrink-0">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 text-white flex items-center justify-center shadow-md shadow-orange-500/25 ring-4 ring-orange-100 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-orange-500 text-white flex items-center justify-center shadow-xs shrink-0">
                 <Building2 className="w-5 h-5 text-white" />
               </div>
               <div>
-                <DialogTitle className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
+                <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
                   {isEditing ? "Editar Configuración de Obra" : "Registrar Nueva Obra"}
                 </DialogTitle>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-slate-500">
                   {step === 1
-                    ? "Paso 1 de 2: Antecedentes del contrato, plazos y equipo a cargo"
-                    : "Paso 2 de 2: Estructura por torre, pisos y departamentos interactivos"}
+                    ? "Paso 1: Ficha contractual, plazos y responsables"
+                    : "Paso 2: Estructura por torre, pisos y departamentos"}
                 </p>
               </div>
             </div>
 
-            {/* Stepper visual con tabs segmentados modernos */}
-            <div className="flex items-center gap-1 bg-slate-200/60 p-1 rounded-2xl border border-slate-200 self-start sm:self-auto">
+            {/* Stepper visual segmentado */}
+            <div className="flex items-center gap-1 bg-slate-200/60 p-1 rounded-xl border border-slate-200 self-start sm:self-auto">
               <button
                 type="button"
                 onClick={() => setStep(1)}
                 className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer",
+                  "flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer",
                   step === 1
-                    ? "bg-white text-slate-900 shadow-xs font-bold ring-1 ring-slate-900/5"
+                    ? "bg-white text-slate-900 shadow-xs font-bold"
                     : "text-slate-500 hover:text-slate-800"
                 )}
               >
                 <span
                   className={cn(
-                    "w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-bold transition-colors",
-                    step === 1 ? "bg-orange-500 text-white shadow-2xs" : "bg-slate-300 text-slate-600"
+                    "w-4 h-4 rounded text-[10px] flex items-center justify-center font-bold",
+                    step === 1 ? "bg-orange-500 text-white" : "bg-slate-300 text-slate-600"
                   )}
                 >
                   1
@@ -783,16 +824,16 @@ export default function ProjectForm({
                 type="button"
                 onClick={handleNextToStep2}
                 className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer",
+                  "flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer",
                   step === 2
-                    ? "bg-white text-slate-900 shadow-xs font-bold ring-1 ring-slate-900/5"
+                    ? "bg-white text-slate-900 shadow-xs font-bold"
                     : "text-slate-500 hover:text-slate-800"
                 )}
               >
                 <span
                   className={cn(
-                    "w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-bold transition-colors",
-                    step === 2 ? "bg-orange-500 text-white shadow-2xs" : "bg-slate-300 text-slate-600"
+                    "w-4 h-4 rounded text-[10px] flex items-center justify-center font-bold",
+                    step === 2 ? "bg-orange-500 text-white" : "bg-slate-300 text-slate-600"
                   )}
                 >
                   2
@@ -803,61 +844,55 @@ export default function ProjectForm({
           </div>
         </DialogHeader>
 
-        {/* ALERTA DE ERROR ELEGANTE */}
+        {/* ALERTA DE ERROR */}
         {error && (
-          <div className="mx-6 sm:mx-8 mt-3 flex items-center gap-2.5 rounded-2xl border border-rose-200 bg-rose-50/90 px-4 py-3 text-xs text-rose-800 animate-in fade-in shadow-2xs">
+          <div className="mx-6 sm:mx-8 mt-3 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs text-rose-800 animate-in fade-in">
             <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
             <span className="font-medium">{error}</span>
           </div>
         )}
 
-        {/* CONTENIDO CON SCROLL SUAVE */}
-        <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-5 scrollbar-thin">
+        {/* CONTENIDO CON SCROLL */}
+        <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-4 scrollbar-thin">
           {/* ===================== PASO 1: ANTECEDENTES ===================== */}
           {step === 1 && (
-            <div className="space-y-5 max-w-3xl mx-auto">
+            <div className="space-y-4 max-w-3xl mx-auto">
               {/* Tarjeta 1: Identificación y Mandante */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4 shadow-2xs">
-                <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
-                  <div className="p-1.5 rounded-lg bg-orange-50 text-orange-600">
-                    <Building className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                      Identificación del Proyecto y Mandante
-                    </h3>
-                    <p className="text-[11px] text-slate-400">Datos principales de la obra contratada</p>
-                  </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4.5 space-y-3.5 shadow-2xs">
+                <div className="pb-1 border-b border-slate-100">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                    Identificación del Proyecto y Mandante
+                  </h3>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
-                    <Label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                    <Label className="text-xs font-semibold text-slate-700 block mb-1">
                       Nombre de la Obra <span className="text-orange-500">*</span>
                     </Label>
                     <Input
                       value={form.name}
                       onChange={(e) => updateFormField("name", e.target.value)}
                       placeholder="Ej: Edificio Parque Central"
-                      className="h-11 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 font-medium transition-all"
+                      className="h-10 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium"
                     />
                   </div>
 
                   <div>
-                    <Label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                    <Label className="text-xs font-semibold text-slate-700 block mb-1">
                       Cliente / Constructora Mandante <span className="text-orange-500">*</span>
                     </Label>
                     <Input
                       value={form.client}
                       onChange={(e) => updateFormField("client", e.target.value)}
                       placeholder="Ej: Constructora Besalco"
-                      className="h-11 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 font-medium transition-all"
+                      className="h-10 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <Label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                  <Label className="text-xs font-semibold text-slate-700 block mb-1">
                     Ubicación / Dirección de la Faena <span className="text-orange-500">*</span>
                   </Label>
                   <div className="relative">
@@ -865,37 +900,31 @@ export default function ProjectForm({
                       value={form.address}
                       onChange={(e) => updateFormField("address", e.target.value)}
                       placeholder="Ej: Av. Las Condes 12345, Santiago"
-                      className="h-11 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 pl-9 font-medium transition-all"
+                      className="h-10 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 pl-8.5 font-medium"
                     />
-                    <MapPin className="h-4 w-4 text-slate-400 absolute left-3 top-3.5 pointer-events-none" />
+                    <MapPin className="h-4 w-4 text-slate-400 absolute left-2.5 top-3 pointer-events-none" />
                   </div>
                 </div>
               </div>
 
-              {/* Tarjeta 2: Equipo de Gestión Responsable */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4 shadow-2xs">
-                <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
-                  <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600">
-                    <UserCheck className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                      Equipo Responsable a Cargo
-                    </h3>
-                    <p className="text-[11px] text-slate-400">Supervisión técnica y jefatura de cuadrillas</p>
-                  </div>
+              {/* Tarjeta 2: Equipo Responsable */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-4.5 space-y-3.5 shadow-2xs">
+                <div className="pb-1 border-b border-slate-100">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                    Equipo Responsable a Cargo
+                  </h3>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
-                    <Label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                    <Label className="text-xs font-semibold text-slate-700 block mb-1">
                       Supervisor Responsable <span className="text-orange-500">*</span>
                     </Label>
                     <Select
                       value={form.supervisor}
                       onValueChange={(v) => updateFormField("supervisor", v)}
                     >
-                      <SelectTrigger className="h-11 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium">
+                      <SelectTrigger className="h-10 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium">
                         <SelectValue placeholder="Seleccionar supervisor" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl border-slate-200 shadow-xl">
@@ -922,14 +951,14 @@ export default function ProjectForm({
                   </div>
 
                   <div>
-                    <Label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                    <Label className="text-xs font-semibold text-slate-700 block mb-1">
                       Capataz Responsable <span className="text-orange-500">*</span>
                     </Label>
                     <Select
                       value={form.capataz}
                       onValueChange={(v) => updateFormField("capataz", v)}
                     >
-                      <SelectTrigger className="h-11 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium">
+                      <SelectTrigger className="h-10 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium">
                         <SelectValue placeholder="Seleccionar capataz" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl border-slate-200 shadow-xl">
@@ -954,53 +983,47 @@ export default function ProjectForm({
               </div>
 
               {/* Tarjeta 3: Plazos Contractuales y Torres */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4 shadow-2xs">
-                <div className="flex items-center gap-2 pb-1 border-b border-slate-100">
-                  <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
-                    <Calendar className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                      Plazos y Alcance General
-                    </h3>
-                    <p className="text-[11px] text-slate-400">Duración estimada y escala de la obra</p>
-                  </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4.5 space-y-3.5 shadow-2xs">
+                <div className="pb-1 border-b border-slate-100">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                    Plazos y Alcance General
+                  </h3>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                   <div>
-                    <Label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                    <Label className="text-xs font-semibold text-slate-700 block mb-1">
                       Fecha de Inicio <span className="text-orange-500">*</span>
                     </Label>
                     <Input
                       type="date"
                       value={form.start_date}
                       onChange={(e) => updateFormField("start_date", e.target.value)}
-                      className="h-11 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium"
+                      className="h-10 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium"
                     />
                   </div>
 
                   <div>
-                    <Label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                    <Label className="text-xs font-semibold text-slate-700 block mb-1">
                       Término Estimado <span className="text-orange-500">*</span>
                     </Label>
                     <Input
                       type="date"
                       value={form.end_date}
                       onChange={(e) => updateFormField("end_date", e.target.value)}
-                      className="h-11 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium"
+                      className="h-10 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium"
                     />
                   </div>
 
                   <div>
-                    <Label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                    <Label className="text-xs font-semibold text-slate-700 block mb-1">
                       Cantidad de Torres <span className="text-orange-500">*</span>
                     </Label>
                     <Select
                       value={String(form.tower_count || 1)}
                       onValueChange={(val) => updateFormField("tower_count", val)}
                     >
-                      <SelectTrigger className="h-11 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium">
+                      <SelectTrigger className="h-10 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium">
                         <SelectValue placeholder="Torres" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl border-slate-200 shadow-xl">
@@ -1015,14 +1038,14 @@ export default function ProjectForm({
                 </div>
 
                 <div>
-                  <Label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                  <Label className="text-xs font-semibold text-slate-700 block mb-1">
                     Descripción o Alcance de la Obra <span className="text-orange-500">*</span>
                   </Label>
                   <Input
                     value={form.description}
                     onChange={(e) => updateFormField("description", e.target.value)}
                     placeholder="Ej: Instalaciones eléctricas en losa, tabiquería, salas técnicas y corrientes débiles"
-                    className="h-11 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium"
+                    className="h-10 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium"
                   />
                 </div>
               </div>
@@ -1031,72 +1054,80 @@ export default function ProjectForm({
 
           {/* ===================== PASO 2: ESTRUCTURA INTERACTIVA ===================== */}
           {step === 2 && (
-            <div className="space-y-4">
-              {/* Barra de pestañas con diseño segmentado moderno */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200">
+            <div className="space-y-3.5">
+              {/* Barra de pestañas limpia (sin iconos recargados) */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold">
                 <button
                   type="button"
                   onClick={() => setStep2Tab("torres")}
                   className={cn(
-                    "flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer",
+                    "flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg transition-all cursor-pointer",
                     step2Tab === "torres"
-                      ? "bg-white text-orange-950 shadow-xs border border-slate-200/80 ring-1 ring-orange-500/20"
+                      ? "bg-white text-orange-950 shadow-2xs font-extrabold border border-slate-200/80"
                       : "text-slate-600 hover:text-slate-900"
                   )}
                 >
-                  <Building2 className="h-4 w-4 text-orange-600" />
-                  <span>Torres & Deptos ({towers.length})</span>
+                  <span>Torres y Deptos</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 font-mono">
+                    {towers.length}
+                  </span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setStep2Tab("subterraneos")}
                   className={cn(
-                    "flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer",
+                    "flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg transition-all cursor-pointer",
                     step2Tab === "subterraneos"
-                      ? "bg-white text-blue-950 shadow-xs border border-slate-200/80 ring-1 ring-blue-500/20"
+                      ? "bg-white text-blue-950 shadow-2xs font-extrabold border border-slate-200/80"
                       : "text-slate-600 hover:text-slate-900"
                   )}
                 >
-                  <Car className="h-4 w-4 text-blue-600" />
-                  <span>Subterráneos ({selectedSubterraneos.length})</span>
+                  <span>Subterráneos</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 font-mono">
+                    {selectedSubterraneos.length}
+                  </span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setStep2Tab("salas")}
                   className={cn(
-                    "flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer",
+                    "flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg transition-all cursor-pointer",
                     step2Tab === "salas"
-                      ? "bg-white text-amber-950 shadow-xs border border-slate-200/80 ring-1 ring-amber-500/20"
+                      ? "bg-white text-amber-950 shadow-2xs font-extrabold border border-slate-200/80"
                       : "text-slate-600 hover:text-slate-900"
                   )}
                 >
-                  <Zap className="h-4 w-4 text-amber-600" />
-                  <span>Salas Técnicas ({selectedAreasComunes.length})</span>
+                  <span>Salas Técnicas</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 font-mono">
+                    {selectedAreasComunes.length}
+                  </span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setStep2Tab("exteriores")}
                   className={cn(
-                    "flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer",
+                    "flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg transition-all cursor-pointer",
                     step2Tab === "exteriores"
-                      ? "bg-white text-emerald-950 shadow-xs border border-slate-200/80 ring-1 ring-emerald-500/20"
+                      ? "bg-white text-emerald-950 shadow-2xs font-extrabold border border-slate-200/80"
                       : "text-slate-600 hover:text-slate-900"
                   )}
                 >
-                  <Trees className="h-4 w-4 text-emerald-600" />
-                  <span>Exteriores ({selectedExteriores.length})</span>
+                  <span>Exteriores</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 font-mono">
+                    {selectedExteriores.length}
+                  </span>
                 </button>
               </div>
 
-              {/* ===================== SUBTAB 1: GRILLA INTERACTIVA ===================== */}
+              {/* ===================== SUBTAB 1: TORRES Y DEPARTAMENTOS ===================== */}
               {step2Tab === "torres" && (
-                <div className="space-y-3.5">
+                <div className="space-y-3">
                   {/* Selector de Torres si hay más de 1 */}
                   {towers.length > 1 && (
-                    <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                    <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200">
                       <span className="text-xs font-bold text-slate-700 pl-1">Torre activa:</span>
                       {towers.map((tower, idx) => {
                         const isActive = idx === activeTowerIndex;
@@ -1108,22 +1139,21 @@ export default function ProjectForm({
                             onClick={() => {
                               setActiveTowerIndex(idx);
                               const fList = generateTowerFloorList(tower);
-                              if (!fList.includes(activeFloorName)) {
-                                setActiveFloorName(fList[0] || "Piso 1");
-                              }
+                              const firstRes = fList.find((f) => f !== "Cubierta") || "Piso 1";
+                              setActiveFloorName(firstRes);
                             }}
                             className={cn(
-                              "flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all cursor-pointer",
+                              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer",
                               isActive
-                                ? "bg-orange-500 text-white border-orange-600 shadow-xs ring-2 ring-orange-300/40"
+                                ? "bg-orange-500 text-white border-orange-600 shadow-2xs"
                                 : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100"
                             )}
                           >
                             <span>{tower.name}</span>
                             <span
                               className={cn(
-                                "text-[10px] px-2 py-0.5 rounded-full font-mono font-bold",
-                                isActive ? "bg-white/25 text-white" : "bg-slate-100 text-slate-600"
+                                "text-[10px] px-1.5 py-0.2 rounded font-mono",
+                                isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
                               )}
                             >
                               {tDeps} dptos
@@ -1134,50 +1164,64 @@ export default function ProjectForm({
                     </div>
                   )}
 
-                  {/* Barra de parámetros de la Torre Activa */}
-                  <div className="bg-slate-50/90 border border-slate-200 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs">
+                  {/* BARRA DE CONFIGURACIÓN DE LA TORRE ACTIVA (Nombre, Pisos máx 15, Deptos hasta 30) */}
+                  <div className="bg-slate-50/90 border border-slate-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs">
                     <div className="flex flex-wrap items-center gap-3">
-                      <div className="flex items-center gap-2">
+                      {/* Nombre de la torre */}
+                      <div className="flex items-center gap-1.5">
                         <Label className="text-xs font-bold text-slate-700">Nombre:</Label>
                         <Input
                           value={activeTower.name}
                           onChange={(e) => updateActiveTower("name", e.target.value)}
-                          className="h-9 w-28 text-xs bg-white font-bold rounded-xl border-slate-200"
+                          className="h-8.5 w-28 text-xs bg-white font-bold rounded-lg border-slate-200"
                           placeholder="Torre A"
                         />
                       </div>
 
+                      {/* Rango de pisos: hasta 15 pisos máximo */}
                       <div className="flex items-center gap-1.5">
                         <Label className="text-xs font-bold text-slate-700">Pisos:</Label>
                         <Input
                           type="number"
                           min="1"
-                          max="50"
+                          max="15"
                           value={activeTower.startFloor}
-                          onChange={(e) =>
-                            updateActiveTower("startFloor", parseInt(e.target.value, 10) || 1)
-                          }
-                          className="h-9 w-14 text-xs bg-white text-center font-bold rounded-xl border-slate-200"
+                          onChange={(e) => updateActiveTower("startFloor", e.target.value)}
+                          className="h-8.5 w-13 text-xs bg-white text-center font-bold rounded-lg border-slate-200"
                         />
                         <span className="text-slate-400 font-bold">al</span>
                         <Input
                           type="number"
                           min="1"
-                          max="50"
+                          max="15"
                           value={activeTower.endFloor}
-                          onChange={(e) =>
-                            updateActiveTower("endFloor", parseInt(e.target.value, 10) || 1)
-                          }
-                          className="h-9 w-14 text-xs bg-white text-center font-bold rounded-xl border-slate-200"
+                          onChange={(e) => updateActiveTower("endFloor", e.target.value)}
+                          className="h-8.5 w-13 text-xs bg-white text-center font-bold rounded-lg border-slate-200"
                         />
+                        <span className="text-[10.5px] text-slate-400 font-medium">(máx 15)</span>
                       </div>
 
-                      <label className="flex items-center gap-2 cursor-pointer select-none bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-2xs hover:bg-slate-50 transition-colors">
+                      {/* Deptos por piso: hasta 30 */}
+                      <div className="flex items-center gap-1.5">
+                        <Label className="text-xs font-bold text-slate-700">Deptos/piso:</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="30"
+                          value={activeTower.defaultDepsCount || 8}
+                          onChange={(e) => updateTowerDefaultDeps(e.target.value)}
+                          className="h-8.5 w-14 text-xs bg-white text-center font-bold rounded-lg border-slate-200"
+                        />
+                        <span className="text-[10.5px] text-slate-400 font-medium">(hasta 30)</span>
+                      </div>
+
+                      {/* Checkbox cubierta */}
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 shadow-2xs hover:bg-slate-50">
                         <input
                           type="checkbox"
                           checked={activeTower.hasCubierta}
                           onChange={(e) => updateActiveTower("hasCubierta", e.target.checked)}
-                          className="h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
                         />
                         <span className="font-semibold text-slate-700 text-xs">Cubierta técnica</span>
                       </label>
@@ -1185,7 +1229,7 @@ export default function ProjectForm({
 
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-slate-500 font-medium">Total en {activeTower.name}:</span>
-                      <Badge className="bg-orange-500 hover:bg-orange-600 text-white font-mono text-xs px-3 py-1 rounded-lg shadow-xs">
+                      <Badge className="bg-orange-500 hover:bg-orange-600 text-white font-mono text-xs px-2.5 py-0.5 rounded-md">
                         {Object.values(activeTower.departments || {}).reduce((s, a) => s + a.length, 0)} dptos
                       </Badge>
                     </div>
@@ -1193,27 +1237,26 @@ export default function ProjectForm({
 
                   {/* Feedback de copia a todos los pisos */}
                   {copiedFeedback && (
-                    <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 px-4 py-2.5 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-in fade-in shadow-2xs">
+                    <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 animate-in fade-in shadow-2xs">
                       <CheckCheck className="h-4 w-4 text-emerald-600 shrink-0" />
                       <span>{copiedFeedback}</span>
                     </div>
                   )}
 
-                  {/* ESTUDIO INTERACTIVO: 2 COLUMNAS (PISOS A LA IZQUIERDA / GRILLA INTERACTIVA A LA DERECHA) */}
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                    {/* Columna Izquierda: Lista de Pisos de esta Torre */}
-                    <div className="md:col-span-5 space-y-2">
+                  {/* ESTUDIO: 2 COLUMNAS (PISOS A LA IZQUIERDA / GRILLA INTERACTIVA A LA DERECHA) */}
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+                    {/* Columna Izquierda: Lista de Pisos (limpia, sin círculos verdes) */}
+                    <div className="md:col-span-4 space-y-1.5">
                       <div className="flex items-center justify-between px-1">
-                        <Label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                          <Layers className="h-4 w-4 text-orange-600" />
-                          <span>Pisos de {activeTower.name}</span>
+                        <Label className="text-xs font-bold text-slate-800">
+                          Pisos de {activeTower.name}
                         </Label>
-                        <span className="text-[11px] text-slate-400 font-mono font-medium">
+                        <span className="text-[10.5px] text-slate-400 font-mono">
                           {currentTowerFloors.length} niveles
                         </span>
                       </div>
 
-                      <div className="border border-slate-200 rounded-2xl p-2 h-[340px] overflow-y-auto space-y-1.5 bg-white scrollbar-thin shadow-2xs">
+                      <div className="border border-slate-200 rounded-xl p-1.5 h-[310px] overflow-y-auto space-y-1 bg-white scrollbar-thin shadow-2xs">
                         {currentTowerFloors.map((floor) => {
                           const isActive = floor === activeFloorName;
                           const depsCount = (activeTower.departments?.[floor] || []).length;
@@ -1225,70 +1268,58 @@ export default function ProjectForm({
                               type="button"
                               onClick={() => setActiveFloorName(floor)}
                               className={cn(
-                                "w-full flex items-center justify-between text-xs py-2.5 px-3 rounded-xl border transition-all text-left cursor-pointer",
+                                "w-full flex items-center justify-between text-xs py-2 px-3 rounded-lg border transition-all text-left cursor-pointer",
                                 isActive
-                                  ? "bg-gradient-to-r from-orange-50 to-amber-50/50 border-orange-400 text-orange-950 font-bold shadow-xs ring-1 ring-orange-400/40"
-                                  : "border-slate-100 hover:bg-slate-50 text-slate-700"
+                                  ? "bg-orange-50 border-orange-400 text-orange-950 font-bold shadow-2xs ring-1 ring-orange-300/40"
+                                  : "border-slate-100 hover:bg-slate-50 text-slate-700 font-medium"
                               )}
                             >
-                              <div className="flex items-center gap-2.5">
-                                <span
-                                  className={cn(
-                                    "w-2.5 h-2.5 rounded-full shrink-0 transition-colors",
-                                    isActive ? "bg-orange-500 ring-2 ring-orange-200" : depsCount > 0 ? "bg-emerald-500" : "bg-slate-300"
-                                  )}
-                                />
-                                <span className="font-semibold">{floor}</span>
-                              </div>
+                              <span>{floor}</span>
 
-                              <div className="flex items-center gap-2">
-                                {isCubierta ? (
-                                  <span className="text-[10px] text-slate-400 italic">Azotea técnica</span>
-                                ) : (
-                                  <Badge
-                                    variant="secondary"
-                                    className={cn(
-                                      "text-[10.5px] px-2 py-0.5 font-mono font-bold rounded-lg",
-                                      depsCount > 0
-                                        ? "bg-orange-100 text-orange-900 border border-orange-200"
-                                        : "bg-slate-100 text-slate-400"
-                                    )}
-                                  >
-                                    {depsCount} dptos
-                                  </Badge>
-                                )}
-                                <span className={cn("text-xs font-black transition-transform", isActive ? "text-orange-600 translate-x-0.5" : "text-transparent")}>
-                                  →
-                                </span>
-                              </div>
+                              {isCubierta ? (
+                                <span className="text-[10px] text-slate-400 italic">Azotea técnica</span>
+                              ) : (
+                                <Badge
+                                  variant="secondary"
+                                  className={cn(
+                                    "text-[10px] px-1.5 py-0.2 font-mono font-bold rounded border",
+                                    depsCount > 0
+                                      ? "bg-orange-100/70 text-orange-900 border-orange-200"
+                                      : "bg-slate-100 text-slate-400 border-slate-200"
+                                  )}
+                                >
+                                  {depsCount} dptos
+                                </Badge>
+                              )}
                             </button>
                           );
                         })}
                       </div>
                     </div>
 
-                    {/* Columna Derecha: Grilla Interactiva de Departamentos */}
-                    <div className="md:col-span-7 space-y-2">
+                    {/* Columna Derecha: Grilla de Departamentos (hasta 30 por piso) */}
+                    <div className="md:col-span-8 space-y-1.5">
                       <div className="flex items-center justify-between px-1">
-                        <Label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                          <SlidersHorizontal className="h-4 w-4 text-orange-600" />
-                          <span>Departamentos en</span>
-                          <span className="text-orange-800 font-extrabold bg-orange-100 px-2 py-0.5 rounded-lg border border-orange-200">
+                        <div className="flex items-center gap-1.5">
+                          <Label className="text-xs font-bold text-slate-800">
+                            Departamentos en
+                          </Label>
+                          <span className="text-orange-800 font-bold bg-orange-100/80 px-2 py-0.5 rounded text-xs border border-orange-200">
                             {activeFloorName}
                           </span>
-                        </Label>
+                        </div>
 
-                        {/* Presets rápidos */}
+                        {/* Presets rápidos hasta 30 */}
                         {activeFloorName !== "Cubierta" && (
                           <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-slate-400 mr-1 hidden sm:inline">Fijar:</span>
-                            {[4, 6, 8, 10, 12, 16].map((num) => (
+                            <span className="text-[10px] text-slate-400 mr-0.5 hidden sm:inline">Fijar:</span>
+                            {[4, 6, 8, 10, 12, 16, 20, 24, 30].map((num) => (
                               <button
                                 key={num}
                                 type="button"
                                 onClick={() => applyPresetCount(num)}
                                 className={cn(
-                                  "px-2 py-1 rounded-lg text-[10.5px] font-bold transition-all border cursor-pointer",
+                                  "px-1.5 py-0.5 rounded text-[10px] font-bold transition-all border cursor-pointer",
                                   activeFloorDeps.length === num
                                     ? "bg-orange-500 text-white border-orange-600 shadow-2xs"
                                     : "bg-white border-slate-200 text-slate-700 hover:bg-orange-50 hover:border-orange-300"
@@ -1300,14 +1331,14 @@ export default function ProjectForm({
                             <button
                               type="button"
                               onClick={selectAllCandidates}
-                              className="px-2 py-1 rounded-lg bg-white border border-slate-200 text-[10.5px] font-bold text-orange-700 hover:bg-orange-50 hover:border-orange-300 transition-colors cursor-pointer ml-0.5"
+                              className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-bold text-orange-700 hover:bg-orange-50 hover:border-orange-300 transition-colors cursor-pointer ml-0.5"
                             >
                               Todos
                             </button>
                             <button
                               type="button"
                               onClick={clearActiveFloorDeps}
-                              className="px-2 py-1 rounded-lg bg-white border border-slate-200 text-[10.5px] font-bold text-slate-400 hover:text-rose-600 transition-colors cursor-pointer ml-0.5"
+                              className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-bold text-slate-400 hover:text-rose-600 transition-colors cursor-pointer ml-0.5"
                             >
                               Limpiar
                             </button>
@@ -1317,28 +1348,25 @@ export default function ProjectForm({
 
                       {/* Caja interactiva de departamentos */}
                       {activeFloorName === "Cubierta" ? (
-                        <div className="border border-dashed border-slate-200 rounded-2xl h-[340px] flex flex-col items-center justify-center text-center p-6 bg-slate-50/50 shadow-2xs">
-                          <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
-                            <Layers className="h-6 w-6 text-slate-400" />
-                          </div>
+                        <div className="border border-dashed border-slate-200 rounded-xl h-[310px] flex flex-col items-center justify-center text-center p-6 bg-slate-50/50 shadow-2xs">
                           <p className="text-xs font-bold text-slate-800">Cubierta / Azotea Técnica</p>
                           <p className="text-[11px] text-slate-500 max-w-xs mt-1 leading-relaxed">
                             Este nivel no lleva departamentos habitacionales. Sus partidas se asignan como recinto global o sala técnica.
                           </p>
                         </div>
                       ) : (
-                        <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/40 h-[340px] flex flex-col justify-between shadow-2xs">
-                          {/* Grilla visual de departamentos */}
-                          <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin space-y-2.5">
+                        <div className="border border-slate-200 rounded-xl p-3 bg-slate-50/40 h-[310px] flex flex-col justify-between shadow-2xs">
+                          {/* Grilla visual de departamentos: 6 columnas para hasta 30 deptos */}
+                          <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin space-y-2">
                             <div className="flex items-center justify-between text-xs text-slate-600 font-medium">
-                              <span>Toca para activar o desactivar departamentos:</span>
-                              <span className="font-bold text-orange-800 bg-white px-2.5 py-0.5 rounded-lg border border-orange-200 shadow-2xs">
-                                {activeFloorDeps.length} activos
+                              <span>Toca las casillas para activar o desactivar:</span>
+                              <span className="font-bold text-orange-800 bg-white px-2 py-0.5 rounded border border-orange-200 shadow-2xs">
+                                {activeFloorDeps.length} de {candidateDeps.length} activos
                               </span>
                             </div>
 
-                            {/* Tarjetas interactivas de departamentos */}
-                            <div className="grid grid-cols-4 sm:grid-cols-4 gap-2 pt-1">
+                            {/* Grilla limpia sin checkmarks invasivos */}
+                            <div className="grid grid-cols-5 sm:grid-cols-6 gap-1.5 pt-0.5">
                               {candidateDeps.map((dep) => {
                                 const isSelected = activeFloorDeps.includes(dep);
                                 return (
@@ -1347,14 +1375,13 @@ export default function ProjectForm({
                                     type="button"
                                     onClick={() => toggleDepartment(dep)}
                                     className={cn(
-                                      "h-11 rounded-xl border text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer select-none",
+                                      "h-8.5 rounded-lg border text-xs font-mono font-bold transition-all flex items-center justify-center cursor-pointer select-none",
                                       isSelected
-                                        ? "bg-gradient-to-br from-orange-500 to-amber-600 text-white border-orange-600 shadow-sm ring-2 ring-orange-500/20 scale-[1.02]"
-                                        : "bg-white border-slate-200 text-slate-700 hover:border-orange-300 hover:bg-orange-50/60 hover:text-orange-950 font-semibold shadow-2xs"
+                                        ? "bg-orange-500 text-white border-orange-600 shadow-2xs scale-[1.02]"
+                                        : "bg-white border-slate-200 text-slate-700 hover:border-orange-300 hover:bg-orange-50/60"
                                     )}
                                   >
-                                    {isSelected && <span className="text-[11px] font-black">✓</span>}
-                                    <span className="font-mono tracking-tight">{dep}</span>
+                                    <span>{dep}</span>
                                   </button>
                                 );
                               })}
@@ -1362,14 +1389,13 @@ export default function ProjectForm({
                           </div>
 
                           {/* Barra de acciones al pie de la grilla */}
-                          <div className="pt-3 border-t border-slate-200 space-y-2 shrink-0">
-                            {/* Input para agregar departamento con nombre único */}
+                          <div className="pt-2 border-t border-slate-200 space-y-1.5 shrink-0">
                             <div className="flex gap-2">
                               <Input
                                 value={customDeptoInput}
                                 onChange={(e) => setCustomDeptoInput(e.target.value)}
-                                placeholder={`Agregar número o nombre (ej: ${activeFloorName.replace(/\D/g, "")}17, Penthouse)`}
-                                className="h-9 text-xs bg-white rounded-xl border-slate-200"
+                                placeholder={`Agregar depto especial (ej: ${activeFloorName.replace(/\D/g, "")}31, Penthouse)`}
+                                className="h-8.5 text-xs bg-white rounded-lg border-slate-200"
                                 onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddCustomDepto())}
                               />
                               <Button
@@ -1377,20 +1403,19 @@ export default function ProjectForm({
                                 onClick={handleAddCustomDepto}
                                 variant="outline"
                                 size="sm"
-                                className="h-9 text-xs px-3.5 font-bold shrink-0 bg-white rounded-xl border-slate-200 hover:bg-orange-50 hover:text-orange-900 shadow-2xs"
+                                className="h-8.5 text-xs px-3 font-bold shrink-0 bg-white rounded-lg border-slate-200 hover:bg-orange-50 hover:text-orange-900 shadow-2xs"
                               >
                                 <Plus className="h-3.5 w-3.5 mr-1" />
                                 Añadir
                               </Button>
                             </div>
 
-                            {/* Botón potente: Copiar a toda la torre */}
                             <Button
                               type="button"
                               onClick={copyToAllFloorsOfTower}
                               variant="outline"
                               size="sm"
-                              className="w-full h-9.5 text-xs font-bold border-orange-200 bg-orange-50/80 text-orange-900 hover:bg-orange-100 hover:border-orange-300 gap-2 rounded-xl shadow-2xs cursor-pointer transition-all"
+                              className="w-full h-8.5 text-xs font-bold border-orange-200 bg-orange-50/80 text-orange-900 hover:bg-orange-100 hover:border-orange-300 gap-1.5 rounded-lg shadow-2xs cursor-pointer transition-all"
                             >
                               <Copy className="h-3.5 w-3.5 text-orange-600 shrink-0" />
                               <span>
@@ -1407,14 +1432,14 @@ export default function ProjectForm({
 
               {/* ===================== SUBTAB 2: SUBTERRÁNEOS ===================== */}
               {step2Tab === "subterraneos" && (
-                <div className="space-y-4">
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4 shadow-2xs">
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-2xs">
                     <div>
                       <Label className="text-xs font-bold text-slate-800 block">
-                        ¿Cuántos niveles de subterráneo tiene la obra?
+                        Niveles de Subterráneo
                       </Label>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Toca un botón para configurar los niveles de bodegas y estacionamientos automáticamente:
+                        Selecciona cuántos niveles de estacionamientos y bodegas tiene el edificio:
                       </p>
                     </div>
 
@@ -1425,9 +1450,9 @@ export default function ProjectForm({
                           type="button"
                           onClick={() => handleSelectSubterraneoLevels(lvl)}
                           className={cn(
-                            "px-4 py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer shadow-2xs",
+                            "px-3.5 py-2 rounded-lg text-xs font-bold border transition-all cursor-pointer shadow-2xs",
                             subterraneoLevels === lvl
-                              ? "bg-blue-600 text-white border-blue-600 shadow-sm ring-2 ring-blue-300/40"
+                              ? "bg-blue-600 text-white border-blue-600 shadow-sm"
                               : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
                           )}
                         >
@@ -1436,28 +1461,24 @@ export default function ProjectForm({
                       ))}
                     </div>
 
-                    {/* Lista de subterráneos seleccionados */}
                     {selectedSubterraneos.length > 0 && (
-                      <div className="pt-2 space-y-2">
+                      <div className="pt-2 space-y-1.5">
                         <Label className="text-xs font-bold text-slate-700 block">
-                          Niveles activos en el proyecto ({selectedSubterraneos.length}):
+                          Niveles activos ({selectedSubterraneos.length}):
                         </Label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {selectedSubterraneos.map((sub) => (
                             <div
                               key={sub}
-                              className="flex items-center justify-between p-3 rounded-xl border border-slate-200 bg-slate-50/50 text-xs font-medium shadow-2xs"
+                              className="flex items-center justify-between p-2.5 rounded-lg border border-slate-200 bg-slate-50/50 text-xs font-medium"
                             >
-                              <div className="flex items-center gap-2.5">
-                                <Car className="h-4 w-4 text-blue-600" />
-                                <span className="text-slate-800 font-semibold">{sub}</span>
-                              </div>
+                              <span className="text-slate-800 font-semibold">{sub}</span>
                               <button
                                 type="button"
                                 onClick={() => toggleSubterraneoItem(sub)}
                                 className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer transition-colors"
                               >
-                                <X className="h-4 w-4" />
+                                <X className="h-3.5 w-3.5" />
                               </button>
                             </div>
                           ))}
@@ -1465,13 +1486,12 @@ export default function ProjectForm({
                       </div>
                     )}
 
-                    {/* Agregar subterráneo personalizado */}
-                    <div className="flex gap-2 pt-3 border-t border-slate-100">
+                    <div className="flex gap-2 pt-2 border-t border-slate-100">
                       <Input
                         value={customSubterraneo}
                         onChange={(e) => setCustomSubterraneo(e.target.value)}
                         placeholder="Ej: Subterráneo -4 (Bodegas Generales)"
-                        className="h-9.5 text-xs bg-white rounded-xl border-slate-200"
+                        className="h-8.5 text-xs bg-white rounded-lg border-slate-200"
                         onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCustomSubterraneoItem())}
                       />
                       <Button
@@ -1479,10 +1499,10 @@ export default function ProjectForm({
                         variant="outline"
                         size="sm"
                         onClick={addCustomSubterraneoItem}
-                        className="h-9.5 text-xs font-bold shrink-0 rounded-xl border-slate-200 hover:bg-slate-50"
+                        className="h-8.5 text-xs font-bold shrink-0 rounded-lg border-slate-200 hover:bg-slate-50"
                       >
                         <Plus className="h-3.5 w-3.5 mr-1" />
-                        Añadir Nivel
+                        Añadir
                       </Button>
                     </div>
                   </div>
@@ -1491,18 +1511,18 @@ export default function ProjectForm({
 
               {/* ===================== SUBTAB 3: SALAS TÉCNICAS ===================== */}
               {step2Tab === "salas" && (
-                <div className="space-y-4">
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4 shadow-2xs">
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-2xs">
                     <div>
                       <Label className="text-xs font-bold text-slate-800 block">
                         Salas Técnicas y Recintos Especiales
                       </Label>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Toca las salas que aplican para esta obra. Se reflejarán en el modelo 3D y en el Plan Maestro:
+                        Toca las salas que aplican para este proyecto:
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {PRESET_SALAS_TECNICAS.map((sala) => {
                         const isSelected = selectedAreasComunes.includes(sala.name);
                         return (
@@ -1511,22 +1531,19 @@ export default function ProjectForm({
                             type="button"
                             onClick={() => toggleAreaComun(sala.name)}
                             className={cn(
-                              "flex items-center justify-between p-3.5 rounded-xl border text-xs font-semibold text-left transition-all cursor-pointer shadow-2xs",
+                              "flex items-center justify-between p-2.5 rounded-lg border text-xs font-semibold text-left transition-all cursor-pointer",
                               isSelected
-                                ? "bg-amber-50/80 border-amber-400 text-amber-950 shadow-xs ring-1 ring-amber-300"
+                                ? "bg-amber-50/70 border-amber-300 text-amber-950 ring-1 ring-amber-300/40"
                                 : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                             )}
                           >
-                            <div className="flex items-center gap-3">
-                              <span className="text-xl">{sala.icon}</span>
-                              <div>
-                                <p className="leading-tight font-bold text-slate-800">{sala.name}</p>
-                                <span className="text-[10.5px] text-slate-400 font-normal">{sala.tag}</span>
-                              </div>
+                            <div>
+                              <p className="font-bold text-slate-800">{sala.name}</p>
+                              <span className="text-[10px] text-slate-400 font-normal">{sala.tag}</span>
                             </div>
                             <div
                               className={cn(
-                                "w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold transition-colors",
+                                "w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold transition-colors",
                                 isSelected
                                   ? "bg-amber-500 text-white"
                                   : "border border-slate-300 text-transparent"
@@ -1539,13 +1556,12 @@ export default function ProjectForm({
                       })}
                     </div>
 
-                    {/* Agregar sala personalizada */}
-                    <div className="flex gap-2 pt-3 border-t border-slate-100">
+                    <div className="flex gap-2 pt-2 border-t border-slate-100">
                       <Input
                         value={customAreaComun}
                         onChange={(e) => setCustomAreaComun(e.target.value)}
                         placeholder="Ej: Sala de Calderas / Termos Solares"
-                        className="h-9.5 text-xs bg-white rounded-xl border-slate-200"
+                        className="h-8.5 text-xs bg-white rounded-lg border-slate-200"
                         onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCustomAreaComun())}
                       />
                       <Button
@@ -1553,10 +1569,10 @@ export default function ProjectForm({
                         variant="outline"
                         size="sm"
                         onClick={addCustomAreaComun}
-                        className="h-9.5 text-xs font-bold shrink-0 rounded-xl border-slate-200 hover:bg-slate-50"
+                        className="h-8.5 text-xs font-bold shrink-0 rounded-lg border-slate-200 hover:bg-slate-50"
                       >
                         <Plus className="h-3.5 w-3.5 mr-1" />
-                        Añadir Sala
+                        Añadir
                       </Button>
                     </div>
                   </div>
@@ -1565,19 +1581,18 @@ export default function ProjectForm({
 
               {/* ===================== SUBTAB 4: EXTERIORES Y VERTICALES ===================== */}
               {step2Tab === "exteriores" && (
-                <div className="space-y-4">
-                  {/* Exteriores */}
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4 shadow-2xs">
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-2xs">
                     <div>
                       <Label className="text-xs font-bold text-slate-800 block">
                         Sectores Exteriores y Perimetrales
                       </Label>
                       <p className="text-xs text-slate-500 mt-0.5">
-                        Selecciona las partidas que se ejecutarán en áreas comunes y exteriores:
+                        Selecciona las partidas que aplican en exteriores y shaft verticales:
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {PRESET_EXTERIORES.map((ext) => {
                         const isSelected = selectedExteriores.includes(ext.name);
                         return (
@@ -1586,19 +1601,16 @@ export default function ProjectForm({
                             type="button"
                             onClick={() => toggleExterior(ext.name)}
                             className={cn(
-                              "flex items-center justify-between p-3.5 rounded-xl border text-xs font-semibold text-left transition-all cursor-pointer shadow-2xs",
+                              "flex items-center justify-between p-2.5 rounded-lg border text-xs font-semibold text-left transition-all cursor-pointer",
                               isSelected
-                                ? "bg-emerald-50/80 border-emerald-400 text-emerald-950 shadow-xs ring-1 ring-emerald-300"
+                                ? "bg-emerald-50/70 border-emerald-300 text-emerald-950 ring-1 ring-emerald-300/40"
                                 : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                             )}
                           >
-                            <div className="flex items-center gap-3">
-                              <span className="text-xl">{ext.icon}</span>
-                              <span className="font-bold text-slate-800">{ext.name}</span>
-                            </div>
+                            <span className="font-bold text-slate-800">{ext.name}</span>
                             <div
                               className={cn(
-                                "w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold transition-colors",
+                                "w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold transition-colors",
                                 isSelected
                                   ? "bg-emerald-600 text-white"
                                   : "border border-slate-300 text-transparent"
@@ -1611,13 +1623,12 @@ export default function ProjectForm({
                       })}
                     </div>
 
-                    {/* Agregar exterior personalizado */}
-                    <div className="flex gap-2 pt-3 border-t border-slate-100">
+                    <div className="flex gap-2 pt-2 border-t border-slate-100">
                       <Input
                         value={customExterior}
                         onChange={(e) => setCustomExterior(e.target.value)}
                         placeholder="Ej: Urbanización Exterior / Paisajismo"
-                        className="h-9.5 text-xs bg-white rounded-xl border-slate-200"
+                        className="h-8.5 text-xs bg-white rounded-lg border-slate-200"
                         onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCustomExterior())}
                       />
                       <Button
@@ -1625,102 +1636,77 @@ export default function ProjectForm({
                         variant="outline"
                         size="sm"
                         onClick={addCustomExterior}
-                        className="h-9.5 text-xs font-bold shrink-0 rounded-xl border-slate-200 hover:bg-slate-50"
+                        className="h-8.5 text-xs font-bold shrink-0 rounded-lg border-slate-200 hover:bg-slate-50"
                       >
                         <Plus className="h-3.5 w-3.5 mr-1" />
-                        Añadir Exterior
+                        Añadir
                       </Button>
                     </div>
                   </div>
 
                   {/* Verticales / Shafts */}
-                  <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3 shadow-2xs">
+                  <div className="rounded-xl border border-slate-200 bg-white p-3.5 space-y-2 shadow-2xs">
                     <Label className="text-xs font-bold text-slate-800 block">
-                      Verticales / Shafts que suben por el edificio
+                      Verticales / Shafts del edificio
                     </Label>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      <label className="flex items-center gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50/70 cursor-pointer text-xs hover:bg-slate-100 transition-colors">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <label className="flex items-center gap-2 p-2 rounded-lg border border-slate-200 bg-slate-50/70 cursor-pointer text-xs hover:bg-slate-100">
                         <input
                           type="checkbox"
                           checked={verticalEL}
                           onChange={(e) => setVerticalEL(e.target.checked)}
-                          className="h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
                         />
-                        <span className="font-bold text-slate-800">⚡ Fuerza (EL)</span>
+                        <span className="font-bold text-slate-800">Fuerza (EL)</span>
                       </label>
 
-                      <label className="flex items-center gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50/70 cursor-pointer text-xs hover:bg-slate-100 transition-colors">
+                      <label className="flex items-center gap-2 p-2 rounded-lg border border-slate-200 bg-slate-50/70 cursor-pointer text-xs hover:bg-slate-100">
                         <input
                           type="checkbox"
                           checked={verticalCD}
                           onChange={(e) => setVerticalCD(e.target.checked)}
-                          className="h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
                         />
-                        <span className="font-bold text-slate-800">📶 Corrientes Débiles (CD)</span>
+                        <span className="font-bold text-slate-800">Corrientes Débiles (CD)</span>
                       </label>
 
-                      <label className="flex items-center gap-2.5 p-3 rounded-xl border border-slate-200 bg-slate-50/70 cursor-pointer text-xs hover:bg-slate-100 transition-colors">
+                      <label className="flex items-center gap-2 p-2 rounded-lg border border-slate-200 bg-slate-50/70 cursor-pointer text-xs hover:bg-slate-100">
                         <input
                           type="checkbox"
                           checked={verticalTC}
                           onChange={(e) => setVerticalTC(e.target.checked)}
-                          className="h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
                         />
-                        <span className="font-bold text-slate-800">🌐 Telecomunicaciones (TC)</span>
+                        <span className="font-bold text-slate-800">Telecomunicaciones (TC)</span>
                       </label>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* ===================== RESUMEN CORDIAL EN VIVO ===================== */}
-              <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50 via-white to-orange-50/30 p-4 text-xs text-slate-800 space-y-2 shadow-2xs">
-                <div className="flex items-center justify-between font-bold text-slate-900 border-b border-slate-200/80 pb-2">
-                  <span className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-orange-500" />
-                    <span>Resumen del Proyecto: {form.name || "Obra sin nombre"}</span>
-                  </span>
-                  <Badge className="bg-emerald-600 text-white font-mono text-[10px] px-2 py-0.5 shadow-2xs">
-                    Estructura Configurada
-                  </Badge>
+              {/* ===================== RESUMEN EN VIVO LIMPIO ===================== */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-xs text-slate-800 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+                <div className="flex flex-wrap items-center gap-3 text-xs font-medium">
+                  <span className="font-bold text-slate-900">Resumen:</span>
+                  <span>{summary.towersCount} {summary.towersCount === 1 ? "Torre" : "Torres"}</span>
+                  <span className="text-slate-300">•</span>
+                  <span className="font-bold text-orange-700">{summary.totalDepartmentsCount} Deptos en total</span>
+                  <span className="text-slate-300">•</span>
+                  <span>{summary.subterraneosCount} Subterráneos</span>
+                  <span className="text-slate-300">•</span>
+                  <span>{summary.salasCount} Salas Técnicas</span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-                  <div className="p-2 rounded-xl bg-white border border-slate-200/80">
-                    <span className="text-slate-400 block text-[10.5px] font-medium">Torres:</span>
-                    <span className="font-bold text-slate-800 text-xs">
-                      {summary.towersCount} {summary.towersCount === 1 ? "Torre" : "Torres"}
-                    </span>
-                  </div>
-
-                  <div className="p-2 rounded-xl bg-orange-50/60 border border-orange-200">
-                    <span className="text-orange-700 block text-[10.5px] font-medium">Departamentos totales:</span>
-                    <span className="font-black text-orange-850 font-mono text-sm">
-                      {summary.totalDepartmentsCount} dptos
-                    </span>
-                  </div>
-
-                  <div className="p-2 rounded-xl bg-white border border-slate-200/80">
-                    <span className="text-slate-400 block text-[10.5px] font-medium">Subterráneos:</span>
-                    <span className="font-bold text-slate-800 text-xs">
-                      {summary.subterraneosCount} niveles
-                    </span>
-                  </div>
-
-                  <div className="p-2 rounded-xl bg-white border border-slate-200/80">
-                    <span className="text-slate-400 block text-[10.5px] font-medium">Salas Técnicas:</span>
-                    <span className="font-bold text-slate-800 text-xs">
-                      {summary.salasCount} recintos
-                    </span>
-                  </div>
-                </div>
+                <Badge className="bg-emerald-600 text-white font-mono text-[10.5px] px-2.5 py-0.5">
+                  Estructura Configurada
+                </Badge>
               </div>
             </div>
           )}
         </div>
 
-        {/* PIE DE PÁGINA CON BOTONES MODERNOS, NÍTIDOS Y CÓMODOS */}
-        <DialogFooter className="border-t border-slate-200/80 bg-slate-50/90 px-6 sm:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+        {/* PIE DE PÁGINA CON BOTONES MODERNOS Y CÓMODOS */}
+        <DialogFooter className="border-t border-slate-200/80 bg-slate-50/90 px-6 sm:px-8 py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
           <div>
             {isEditing && canDelete && step === 1 && (
               <Button
@@ -1733,7 +1719,7 @@ export default function ProjectForm({
                     onClose();
                   }
                 }}
-                className="gap-2 text-xs h-11 px-4 rounded-xl text-rose-700 border-rose-200 bg-rose-50/80 hover:bg-rose-100 font-bold transition-all cursor-pointer shadow-2xs"
+                className="gap-1.5 text-xs h-10 px-4 rounded-xl text-rose-700 border-rose-200 bg-rose-50/80 hover:bg-rose-100 font-bold transition-all cursor-pointer shadow-2xs"
               >
                 <Trash2 className="h-4 w-4 text-rose-600" />
                 <span>Eliminar Obra</span>
@@ -1741,14 +1727,14 @@ export default function ProjectForm({
             )}
           </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={onClose}
               disabled={saving}
-              className="text-xs h-11 px-5 rounded-xl border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold transition-all cursor-pointer shadow-2xs"
+              className="text-xs h-10 px-4 rounded-xl border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold transition-all cursor-pointer shadow-2xs"
             >
               Cancelar
             </Button>
@@ -1757,7 +1743,7 @@ export default function ProjectForm({
               <Button
                 type="button"
                 onClick={handleNextToStep2}
-                className="bg-gradient-to-r from-orange-500 via-orange-600 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white gap-2 text-xs sm:text-sm h-11 px-6 rounded-xl font-bold shadow-md shadow-orange-500/25 hover:shadow-lg hover:shadow-orange-500/30 transition-all cursor-pointer active:scale-[0.98]"
+                className="bg-gradient-to-r from-orange-500 via-orange-600 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white gap-2 text-xs sm:text-sm h-10 px-5 rounded-xl font-bold shadow-md shadow-orange-500/25 hover:shadow-lg hover:shadow-orange-500/30 transition-all cursor-pointer active:scale-[0.98]"
               >
                 <span>Siguiente: Estructura de la Obra</span>
                 <ArrowRight className="h-4 w-4" />
@@ -1768,7 +1754,7 @@ export default function ProjectForm({
                   type="button"
                   variant="outline"
                   onClick={() => setStep(1)}
-                  className="gap-1.5 text-xs h-11 px-4 rounded-xl border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold transition-all cursor-pointer shadow-2xs"
+                  className="gap-1.5 text-xs h-10 px-4 rounded-xl border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-semibold transition-all cursor-pointer shadow-2xs"
                   disabled={saving}
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -1779,10 +1765,10 @@ export default function ProjectForm({
                   type="button"
                   onClick={handleSaveProject}
                   disabled={saving}
-                  className="bg-gradient-to-r from-orange-500 via-orange-600 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white gap-2 text-xs sm:text-sm h-11 px-7 rounded-xl font-bold shadow-md shadow-orange-500/25 hover:shadow-lg hover:shadow-orange-500/30 transition-all cursor-pointer active:scale-[0.98]"
+                  className="bg-gradient-to-r from-orange-500 via-orange-600 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white gap-2 text-xs sm:text-sm h-10 px-6 rounded-xl font-bold shadow-md shadow-orange-500/25 hover:shadow-lg hover:shadow-orange-500/30 transition-all cursor-pointer active:scale-[0.98]"
                 >
                   <Check className="h-4 w-4" />
-                  <span>{saving ? "Guardando Obra..." : isEditing ? "Guardar Cambios" : "Crear y Configurar Obra"}</span>
+                  <span>{saving ? "Guardando..." : isEditing ? "Guardar Cambios" : "Crear y Configurar Obra"}</span>
                 </Button>
               </>
             )}
