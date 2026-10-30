@@ -39,12 +39,14 @@ import {
   UserCheck,
   MapPin,
   FileText,
+  Copy,
+  CheckCheck,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-// --- PRESETS PARA SALAS TÉCNICAS Y EXTERIORES ---
+// Presets para salas técnicas y exteriores
 const PRESET_SALAS_TECNICAS = [
   { id: "tgbt", name: "Sala Eléctrica Principal (TGBT)", icon: "⚡", tag: "Eléctrica" },
   { id: "bombas", name: "Sala de Bombas de Agua Potable", icon: "💧", tag: "Sanitaria" },
@@ -65,20 +67,7 @@ const PRESET_EXTERIORES = [
 
 const TOWER_LETTERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
 
-function createDefaultTower(index = 0) {
-  const letter = TOWER_LETTERS[index] || `${index + 1}`;
-  return {
-    id: `tower-${index + 1}-${Date.now()}`,
-    name: `Torre ${letter}`,
-    startFloor: 1,
-    endFloor: 15,
-    hasCubierta: true,
-    departmentsPerFloor: 8,
-    customFloorDepartments: {},
-  };
-}
-
-function generateDepartmentsForFloor(floorName, count) {
+function generateDepartmentsForFloor(floorName, count = 8) {
   const match = floorName.match(/Piso\s+(\d+)/i);
   if (!match) return [];
   const floorNum = parseInt(match[1], 10);
@@ -103,6 +92,49 @@ function generateTowerFloorList(tower) {
     list.push("Cubierta");
   }
   return list;
+}
+
+function getCandidateDepartments(floorName, existingSelected = [], maxBase = 16) {
+  const match = floorName.match(/Piso\s+(\d+)/i);
+  if (!match) return existingSelected;
+  const floorNum = parseInt(match[1], 10);
+
+  const candidates = new Set();
+  for (let i = 1; i <= maxBase; i++) {
+    const formatted = i < 10 ? `0${i}` : `${i}`;
+    candidates.add(`${floorNum}${formatted}`);
+  }
+  (existingSelected || []).forEach((dep) => candidates.add(dep));
+
+  return Array.from(candidates).sort((a, b) => {
+    const na = parseInt(a, 10);
+    const nb = parseInt(b, 10);
+    if (!isNaN(na) && !isNaN(nb)) return na - nb;
+    return a.localeCompare(b, undefined, { numeric: true });
+  });
+}
+
+function createDefaultTower(index = 0) {
+  const letter = TOWER_LETTERS[index] || `${index + 1}`;
+  const startFloor = 1;
+  const endFloor = 15;
+  const hasCubierta = true;
+
+  const tower = {
+    id: `tower-${index + 1}-${Date.now()}`,
+    name: `Torre ${letter}`,
+    startFloor,
+    endFloor,
+    hasCubierta,
+    departments: {},
+  };
+
+  const floors = generateTowerFloorList(tower);
+  floors.forEach((f) => {
+    tower.departments[f] = f === "Cubierta" ? [] : generateDepartmentsForFloor(f, 8);
+  });
+
+  return tower;
 }
 
 function safeParseJson(value, fallback) {
@@ -167,6 +199,9 @@ export default function ProjectForm({
   // Estructura por Torre
   const [towers, setTowers] = useState([createDefaultTower(0)]);
   const [activeTowerIndex, setActiveTowerIndex] = useState(0);
+  const [activeFloorName, setActiveFloorName] = useState("Piso 1");
+  const [customDeptoInput, setCustomDeptoInput] = useState("");
+  const [copiedFeedback, setCopiedFeedback] = useState("");
 
   // Subterráneos
   const [subterraneoLevels, setSubterraneoLevels] = useState(0); // 0 a 5
@@ -191,11 +226,8 @@ export default function ProjectForm({
   const [verticalCD, setVerticalCD] = useState(true);
   const [verticalTC, setVerticalTC] = useState(true);
 
-  // Pestaña activa en Paso 2: 'torres' | 'subterraneos' | 'salas' | 'verticales'
+  // Pestaña activa en Paso 2: 'torres' | 'subterraneos' | 'salas' | 'exteriores'
   const [step2Tab, setStep2Tab] = useState("torres");
-
-  // Edición de pisos individuales en la torre activa
-  const [expandedCustomFloors, setExpandedCustomFloors] = useState(false);
 
   // Inicialización / Reset
   useEffect(() => {
@@ -239,7 +271,6 @@ export default function ProjectForm({
       if (parsedDeps.__towers_config__ && Array.isArray(parsedDeps.__towers_config__)) {
         setTowers(parsedDeps.__towers_config__);
       } else {
-        // Reconstrucción inteligente si viene de versión anterior
         const count = Math.max(1, Number(editProject.tower_count) || 1);
         const parsedFloors = safeParseJson(editProject.floors, []);
         const rawFloors = parsedFloors.filter((f) => !/Subterr|Exterior|Comun/i.test(f));
@@ -250,26 +281,43 @@ export default function ProjectForm({
 
         const newTowers = [];
         for (let i = 0; i < count; i++) {
-          newTowers.push({
+          const t = {
             id: `tower-${i + 1}`,
             name: count > 1 ? `Torre ${TOWER_LETTERS[i] || i + 1}` : "Torre 1",
             startFloor: 1,
             endFloor: maxFloorNum || 15,
             hasCubierta: rawFloors.some((f) => /cubierta|azotea/i.test(f)),
-            departmentsPerFloor: 8,
-            customFloorDepartments: {},
+            departments: {},
+          };
+
+          const tFloors = generateTowerFloorList(t);
+          tFloors.forEach((f) => {
+            // Revisar si viene de formato anidado o plano
+            const fromNested = parsedDeps[t.name]?.[f];
+            const fromFlat = parsedDeps[f];
+            t.departments[f] = Array.isArray(fromNested)
+              ? fromNested
+              : Array.isArray(fromFlat)
+              ? fromFlat
+              : f === "Cubierta"
+              ? []
+              : generateDepartmentsForFloor(f, 8);
           });
+          newTowers.push(t);
         }
         setTowers(newTowers);
       }
 
       setActiveTowerIndex(0);
+      setActiveFloorName("Piso 1");
       setStep(1);
     } else {
       setForm({ ...INITIAL_FORM });
       setStep(1);
-      setTowers([createDefaultTower(0)]);
+      const defaultTowers = [createDefaultTower(0)];
+      setTowers(defaultTowers);
       setActiveTowerIndex(0);
+      setActiveFloorName("Piso 1");
       setSubterraneoLevels(2);
       setSelectedSubterraneos([
         "Subterráneo -1 (Estacionamientos y Bodegas)",
@@ -288,7 +336,8 @@ export default function ProjectForm({
       setVerticalEL(true);
       setVerticalCD(true);
       setVerticalTC(true);
-      setExpandedCustomFloors(false);
+      setCustomDeptoInput("");
+      setCopiedFeedback("");
     }
   }, [open, editProject]);
 
@@ -296,7 +345,6 @@ export default function ProjectForm({
     setForm((prev) => ({ ...prev, [field]: value }));
     if (error) setError("");
 
-    // Si cambia tower_count en paso 1, ajustar el array de torres cordialmente
     if (field === "tower_count") {
       const num = parseInt(value, 10);
       if (Number.isInteger(num) && num >= 1 && num <= 10) {
@@ -319,21 +367,145 @@ export default function ProjectForm({
     }
   };
 
-  // Actualizar torre activa
+  const activeTower = towers[activeTowerIndex] || towers[0];
+
+  // Actualizar torre activa y sincronizar sus pisos
   const updateActiveTower = (field, value) => {
     setTowers((prev) => {
       const next = [...prev];
       if (next[activeTowerIndex]) {
-        next[activeTowerIndex] = {
+        const updated = {
           ...next[activeTowerIndex],
           [field]: value,
         };
+
+        // Si cambiaron los pisos o cubierta, sincronizar diccionario de departamentos
+        if (field === "startFloor" || field === "endFloor" || field === "hasCubierta") {
+          const newFloors = generateTowerFloorList(updated);
+          const currentDeps = updated.departments || {};
+          const syncedDeps = {};
+
+          newFloors.forEach((f) => {
+            if (f === "Cubierta") {
+              syncedDeps[f] = currentDeps[f] || [];
+            } else if (currentDeps[f] && currentDeps[f].length > 0) {
+              syncedDeps[f] = currentDeps[f];
+            } else {
+              syncedDeps[f] = generateDepartmentsForFloor(f, 8);
+            }
+          });
+          updated.departments = syncedDeps;
+        }
+
+        next[activeTowerIndex] = updated;
       }
       return next;
     });
   };
 
-  // Selector rápido de niveles de subterráneo
+  // Departamentos del piso activo
+  const activeFloorDeps = (activeTower?.departments && activeTower.departments[activeFloorName]) || [];
+  const candidateDeps = useMemo(() => {
+    return getCandidateDepartments(activeFloorName, activeFloorDeps, 16);
+  }, [activeFloorName, activeFloorDeps]);
+
+  // Alternar un departamento en el piso activo
+  const toggleDepartment = (dep) => {
+    setTowers((prev) => {
+      const next = [...prev];
+      const tower = { ...next[activeTowerIndex] };
+      const towerDeps = { ...(tower.departments || {}) };
+      const currentList = towerDeps[activeFloorName] || [];
+
+      if (currentList.includes(dep)) {
+        towerDeps[activeFloorName] = currentList.filter((d) => d !== dep);
+      } else {
+        towerDeps[activeFloorName] = [...currentList, dep].sort((a, b) => {
+          const na = parseInt(a, 10);
+          const nb = parseInt(b, 10);
+          if (!isNaN(na) && !isNaN(nb)) return na - nb;
+          return a.localeCompare(b, undefined, { numeric: true });
+        });
+      }
+
+      tower.departments = towerDeps;
+      next[activeTowerIndex] = tower;
+      return next;
+    });
+  };
+
+  // Botones de selección rápida (1 al 4, 1 al 8, todos, limpiar)
+  const applyPresetCount = (count) => {
+    const deps = generateDepartmentsForFloor(activeFloorName, count);
+    setTowers((prev) => {
+      const next = [...prev];
+      const tower = { ...next[activeTowerIndex] };
+      const towerDeps = { ...(tower.departments || {}) };
+      towerDeps[activeFloorName] = deps;
+      tower.departments = towerDeps;
+      next[activeTowerIndex] = tower;
+      return next;
+    });
+  };
+
+  const selectAllCandidates = () => {
+    setTowers((prev) => {
+      const next = [...prev];
+      const tower = { ...next[activeTowerIndex] };
+      const towerDeps = { ...(tower.departments || {}) };
+      towerDeps[activeFloorName] = [...candidateDeps];
+      tower.departments = towerDeps;
+      next[activeTowerIndex] = tower;
+      return next;
+    });
+  };
+
+  const clearActiveFloorDeps = () => {
+    setTowers((prev) => {
+      const next = [...prev];
+      const tower = { ...next[activeTowerIndex] };
+      const towerDeps = { ...(tower.departments || {}) };
+      towerDeps[activeFloorName] = [];
+      tower.departments = towerDeps;
+      next[activeTowerIndex] = tower;
+      return next;
+    });
+  };
+
+  // Copiar distribución del piso actual a todos los pisos de la torre activa
+  const copyToAllFloorsOfTower = () => {
+    const currentCount = activeFloorDeps.length;
+    setTowers((prev) => {
+      const next = [...prev];
+      const tower = { ...next[activeTowerIndex] };
+      const towerDeps = { ...(tower.departments || {}) };
+      const towerFloors = generateTowerFloorList(tower);
+
+      towerFloors.forEach((floor) => {
+        if (floor !== "Cubierta") {
+          towerDeps[floor] = generateDepartmentsForFloor(floor, currentCount);
+        }
+      });
+
+      tower.departments = towerDeps;
+      next[activeTowerIndex] = tower;
+      return next;
+    });
+
+    setCopiedFeedback(`¡Se aplicaron ${currentCount} departamentos a todos los pisos de ${activeTower.name}!`);
+    setTimeout(() => setCopiedFeedback(""), 3500);
+  };
+
+  // Añadir departamento personalizado
+  const handleAddCustomDepto = (e) => {
+    if (e) e.preventDefault();
+    const val = customDeptoInput.trim().toUpperCase();
+    if (!val) return;
+    toggleDepartment(val);
+    setCustomDeptoInput("");
+  };
+
+  // Subterráneos
   const handleSelectSubterraneoLevels = (levels) => {
     setSubterraneoLevels(levels);
     if (levels === 0) {
@@ -361,6 +533,7 @@ export default function ProjectForm({
     }
   };
 
+  // Salas técnicas y exteriores
   const toggleAreaComun = (name) => {
     setSelectedAreasComunes((prev) =>
       prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name]
@@ -399,11 +572,8 @@ export default function ProjectForm({
       let towerDepsCount = 0;
 
       floorsList.forEach((floorName) => {
-        if (t.customFloorDepartments[floorName]) {
-          towerDepsCount += t.customFloorDepartments[floorName].length;
-        } else {
-          towerDepsCount += generateDepartmentsForFloor(floorName, t.departmentsPerFloor).length;
-        }
+        const floorDeps = (t.departments && t.departments[floorName]) || [];
+        towerDepsCount += floorDeps.length;
       });
 
       totalFloorsCount += floorsList.length;
@@ -412,11 +582,7 @@ export default function ProjectForm({
       return {
         name: t.name,
         floorsCount: floorsList.length,
-        startFloor: t.startFloor,
-        endFloor: t.endFloor,
-        hasCubierta: t.hasCubierta,
         depsCount: towerDepsCount,
-        depsPerFloor: t.departmentsPerFloor,
       };
     });
 
@@ -431,7 +597,7 @@ export default function ProjectForm({
     };
   }, [towers, selectedSubterraneos, selectedAreasComunes, selectedExteriores]);
 
-  // Validaciones y avance
+  // Validaciones para pasar al paso 2
   const handleNextToStep2 = () => {
     const name = form.name.trim();
     if (!name) {
@@ -439,7 +605,6 @@ export default function ProjectForm({
       return;
     }
 
-    // Verificar duplicado de nombre
     const duplicate = projects.find(
       (p) =>
         p.name.trim().toLowerCase() === name.toLowerCase() &&
@@ -489,7 +654,6 @@ export default function ProjectForm({
       setSaving(true);
       setError("");
 
-      // 1. Consolidar lista de todos los pisos únicos para backwards compatibility
       const allFloorsSet = new Set();
       towers.forEach((t) => {
         const tFloors = generateTowerFloorList(t);
@@ -497,27 +661,16 @@ export default function ProjectForm({
       });
       const consolidatedFloors = Array.from(allFloorsSet);
 
-      // 2. Construir mapa de departamentos por torre y por piso
       const departmentsObj = {
         __towers_config__: towers,
       };
 
       towers.forEach((t) => {
-        const tFloors = generateTowerFloorList(t);
-        departmentsObj[t.name] = {};
-
-        tFloors.forEach((floorName) => {
-          let deps = [];
-          if (t.customFloorDepartments[floorName]) {
-            deps = t.customFloorDepartments[floorName];
-          } else {
-            deps = generateDepartmentsForFloor(floorName, t.departmentsPerFloor);
-          }
-          departmentsObj[t.name][floorName] = deps;
-
-          // También mapear a nivel de piso directo para retrocompatibilidad
-          if (!departmentsObj[floorName]) {
-            departmentsObj[floorName] = deps;
+        departmentsObj[t.name] = t.departments || {};
+        // Retrocompatibilidad con ítems anteriores a nivel plano
+        Object.entries(t.departments || {}).forEach(([f, deps]) => {
+          if (!departmentsObj[f] || departmentsObj[f].length === 0) {
+            departmentsObj[f] = deps;
           }
         });
       });
@@ -554,17 +707,17 @@ export default function ProjectForm({
     }
   };
 
-  const activeTower = towers[activeTowerIndex] || towers[0];
+  const currentTowerFloors = generateTowerFloorList(activeTower);
 
   return (
     <Dialog open={open} onOpenChange={(val) => !saving && !val && onClose()}>
-      <DialogContent className="flex max-h-[92vh] flex-col overflow-hidden p-0 sm:max-w-4xl bg-white shadow-2xl border-slate-200">
-        {/* ENCABEZADO AMIGABLE Y CORDIAL */}
+      <DialogContent className="flex max-h-[94vh] flex-col overflow-hidden p-0 sm:max-w-4xl bg-white shadow-2xl border-slate-200">
+        {/* ENCABEZADO CORDIAL */}
         <DialogHeader className="border-b bg-gradient-to-r from-slate-50 via-white to-slate-50 px-6 py-4 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20">
-                <Building2 className="h-5 w-5 text-orange-600" />
+              <div className="p-2 rounded-xl bg-orange-50 text-orange-600 border border-orange-200">
+                <Building2 className="h-5 w-5" />
               </div>
               <div>
                 <DialogTitle className="text-base font-bold text-slate-800">
@@ -573,12 +726,12 @@ export default function ProjectForm({
                 <p className="text-xs text-slate-500 mt-0.5">
                   {step === 1
                     ? "Paso 1 de 2: Ficha contractual, plazos y responsables"
-                    : "Paso 2 de 2: Configuración estructural por torre y sectores"}
+                    : "Paso 2 de 2: Configuración estructural interactiva por torre"}
                 </p>
               </div>
             </div>
 
-            {/* Indicador de pasos visual */}
+            {/* Pasos */}
             <div className="flex items-center gap-2">
               <span
                 className={cn(
@@ -605,23 +758,23 @@ export default function ProjectForm({
           </div>
         </DialogHeader>
 
-        {/* ALERTA DE ERROR CORDIAL */}
+        {/* ALERTA DE ERROR */}
         {error && (
-          <div className="mx-6 mt-4 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50/80 px-4 py-2.5 text-xs text-rose-800 animate-in fade-in">
+          <div className="mx-6 mt-3 flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50/80 px-4 py-2.5 text-xs text-rose-800 animate-in fade-in">
             <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
             <span>{error}</span>
           </div>
         )}
 
-        {/* CUERPO DEL MODAL CON SCROLL LIMPIO */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 scrollbar-thin">
+        {/* CUERPO DEL FORMULARIO CON SCROLL */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 scrollbar-thin">
           {/* ===================== PASO 1: FICHA CONTRACTUAL ===================== */}
           {step === 1 && (
-            <div className="space-y-4 max-w-2xl mx-auto">
-              <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-3.5 flex items-start gap-2.5 text-xs text-slate-650">
+            <div className="space-y-4 max-w-2xl mx-auto py-1">
+              <div className="rounded-xl border border-orange-100 bg-orange-50/40 p-3 flex items-start gap-2.5 text-xs text-slate-650">
                 <Info className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
                 <p>
-                  Ingresa los antecedentes principales de la obra. En el siguiente paso definirás la estructura de las torres, pisos y salas técnicas.
+                  Ingresa los antecedentes principales de la obra. En el siguiente paso definirás la estructura de torres, pisos y la grilla de departamentos.
                 </p>
               </div>
 
@@ -795,11 +948,11 @@ export default function ProjectForm({
             </div>
           )}
 
-          {/* ===================== PASO 2: ESTRUCTURA DEL PROYECTO ===================== */}
+          {/* ===================== PASO 2: ESTRUCTURA INTERACTIVA ===================== */}
           {step === 2 && (
             <div className="space-y-4">
-              {/* Barra de pestañas secundarias en Paso 2 */}
-              <div className="flex flex-wrap items-center gap-1.5 border-b pb-2.5">
+              {/* Pestañas de secciones */}
+              <div className="flex flex-wrap items-center gap-1.5 border-b pb-2">
                 <button
                   type="button"
                   onClick={() => setStep2Tab("torres")}
@@ -811,7 +964,7 @@ export default function ProjectForm({
                   )}
                 >
                   <Building2 className="h-3.5 w-3.5" />
-                  <span>Torres y Pisos ({towers.length})</span>
+                  <span>Torres y Departamentos ({towers.length})</span>
                 </button>
 
                 <button
@@ -857,212 +1010,296 @@ export default function ProjectForm({
                 </button>
               </div>
 
-              {/* ===================== SUBTAB 1: TORRES INDIVIDUALES ===================== */}
+              {/* ===================== SUBTAB 1: GRILLA INTERACTIVA DE TORRES Y DEPTOS ===================== */}
               {step2Tab === "torres" && (
-                <div className="space-y-4">
-                  {/* Selector de Torre Activa (si hay más de 1) */}
+                <div className="space-y-3.5">
+                  {/* Selector de Torres si hay más de 1 */}
                   {towers.length > 1 && (
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-700">
-                        Selecciona la torre que deseas configurar:
-                      </Label>
-                      <div className="flex flex-wrap gap-2">
-                        {towers.map((tower, idx) => {
-                          const isActive = idx === activeTowerIndex;
-                          const tFloorsCount = generateTowerFloorList(tower).length;
-                          return (
-                            <button
-                              key={tower.id || idx}
-                              type="button"
-                              onClick={() => {
-                                setActiveTowerIndex(idx);
-                                setExpandedCustomFloors(false);
-                              }}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-bold text-slate-700">Torre:</span>
+                      {towers.map((tower, idx) => {
+                        const isActive = idx === activeTowerIndex;
+                        const tDeps = Object.values(tower.departments || {}).reduce((s, a) => s + a.length, 0);
+                        return (
+                          <button
+                            key={tower.id || idx}
+                            type="button"
+                            onClick={() => {
+                              setActiveTowerIndex(idx);
+                              const fList = generateTowerFloorList(tower);
+                              if (!fList.includes(activeFloorName)) {
+                                setActiveFloorName(fList[0] || "Piso 1");
+                              }
+                            }}
+                            className={cn(
+                              "flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border transition-all",
+                              isActive
+                                ? "bg-orange-50 border-orange-400 text-orange-950 shadow-xs ring-1 ring-orange-400"
+                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                            )}
+                          >
+                            <span>{tower.name}</span>
+                            <Badge
+                              variant="secondary"
                               className={cn(
-                                "flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold border transition-all text-left",
-                                isActive
-                                  ? "bg-orange-50 border-orange-400 text-orange-950 shadow-xs ring-1 ring-orange-400"
-                                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                                "text-[10px] px-1.5 py-0 rounded-full font-mono",
+                                isActive ? "bg-orange-200/80 text-orange-900" : ""
                               )}
                             >
-                              <div
-                                className={cn(
-                                  "w-6 h-6 rounded-lg flex items-center justify-center text-xs font-black",
-                                  isActive
-                                    ? "bg-orange-500 text-white"
-                                    : "bg-slate-100 text-slate-600"
-                                )}
-                              >
-                                {idx + 1}
+                              {tDeps} dptos
+                            </Badge>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Barra de parámetros de la Torre Activa */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-1.5">
+                        <Label className="text-xs font-bold text-slate-700">Nombre:</Label>
+                        <Input
+                          value={activeTower.name}
+                          onChange={(e) => updateActiveTower("name", e.target.value)}
+                          className="h-8 w-28 text-xs bg-white font-bold"
+                          placeholder="Torre A"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <Label className="text-xs font-bold text-slate-700">Pisos:</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="50"
+                          value={activeTower.startFloor}
+                          onChange={(e) =>
+                            updateActiveTower("startFloor", parseInt(e.target.value, 10) || 1)
+                          }
+                          className="h-8 w-14 text-xs bg-white text-center font-bold"
+                        />
+                        <span className="text-slate-400 font-bold">al</span>
+                        <Input
+                          type="number"
+                          min="1"
+                          max="50"
+                          value={activeTower.endFloor}
+                          onChange={(e) =>
+                            updateActiveTower("endFloor", parseInt(e.target.value, 10) || 1)
+                          }
+                          className="h-8 w-14 text-xs bg-white text-center font-bold"
+                        />
+                      </div>
+
+                      <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={activeTower.hasCubierta}
+                          onChange={(e) => updateActiveTower("hasCubierta", e.target.checked)}
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-orange-600"
+                        />
+                        <span className="font-semibold text-slate-700">Cubierta</span>
+                      </label>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-500">Total en {activeTower.name}:</span>
+                      <Badge className="bg-orange-500 text-white font-mono text-xs">
+                        {Object.values(activeTower.departments || {}).reduce((s, a) => s + a.length, 0)} departamentos
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Feedback de copia a todos los pisos */}
+                  {copiedFeedback && (
+                    <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 animate-in fade-in">
+                      <CheckCheck className="h-4 w-4 text-emerald-600" />
+                      <span>{copiedFeedback}</span>
+                    </div>
+                  )}
+
+                  {/* ESTUDIO INTERACTIVO: 2 COLUMNAS (PISOS A LA IZQUIERDA / GRILLA INTERACTIVA A LA DERECHA) */}
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+                    {/* Columna Izquierda: Lista de Pisos de esta Torre */}
+                    <div className="md:col-span-5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                          <Layers className="h-4 w-4 text-orange-600" />
+                          1. Pisos de {activeTower.name} ({currentTowerFloors.length})
+                        </Label>
+                        <span className="text-[10px] text-muted-foreground">Toca un piso</span>
+                      </div>
+
+                      <div className="border border-slate-200 rounded-xl p-2 h-80 overflow-y-auto space-y-1 bg-white scrollbar-thin">
+                        {currentTowerFloors.map((floor) => {
+                          const isActive = floor === activeFloorName;
+                          const depsCount = (activeTower.departments?.[floor] || []).length;
+                          const isCubierta = floor === "Cubierta";
+
+                          return (
+                            <button
+                              key={floor}
+                              type="button"
+                              onClick={() => setActiveFloorName(floor)}
+                              className={cn(
+                                "w-full flex items-center justify-between text-xs py-2 px-3 rounded-lg border transition-all text-left",
+                                isActive
+                                  ? "bg-orange-50 border-orange-500 text-orange-950 font-bold shadow-2xs ring-1 ring-orange-400"
+                                  : "border-slate-100 hover:bg-slate-50 text-slate-700"
+                              )}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={cn(
+                                    "w-2 h-2 rounded-full",
+                                    isActive ? "bg-orange-500" : depsCount > 0 ? "bg-emerald-500" : "bg-slate-300"
+                                  )}
+                                />
+                                <span>{floor}</span>
                               </div>
-                              <div>
-                                <p className="leading-tight">{tower.name}</p>
-                                <p className="text-[10px] text-muted-foreground font-normal">
-                                  {tFloorsCount} pisos · {tower.departmentsPerFloor} dptos/piso
-                                </p>
+
+                              <div className="flex items-center gap-1.5">
+                                {isCubierta ? (
+                                  <span className="text-[10px] text-slate-400 italic">Técnica</span>
+                                ) : (
+                                  <Badge
+                                    variant="secondary"
+                                    className={cn(
+                                      "text-[10.5px] px-2 py-0.5 font-mono font-bold",
+                                      depsCount > 0
+                                        ? "bg-orange-100 text-orange-800 border border-orange-200"
+                                        : "bg-slate-100 text-slate-400"
+                                    )}
+                                  >
+                                    {depsCount} dptos
+                                  </Badge>
+                                )}
+                                <span className={cn("text-xs font-black", isActive ? "text-orange-600" : "text-transparent")}>
+                                  →
+                                </span>
                               </div>
                             </button>
                           );
                         })}
                       </div>
                     </div>
-                  )}
 
-                  {/* Panel de Configuración de la Torre Activa */}
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-3">
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-orange-600 text-white text-xs px-2 py-0.5">
-                          Configurando: {activeTower.name}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          Define los pisos y la cantidad típica de departamentos para esta torre.
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5">
-                      {/* Nombre Personalizado de la Torre */}
-                      <div className="sm:col-span-4">
-                        <Label className="text-xs font-bold text-slate-700 mb-1 block">
-                          Nombre o Letra de la Torre
+                    {/* Columna Derecha: Grilla Interactiva de Departamentos */}
+                    <div className="md:col-span-7 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                          <SlidersHorizontal className="h-4 w-4 text-orange-600" />
+                          2. Departamentos en <span className="text-orange-700 font-extrabold">{activeFloorName}</span>
                         </Label>
-                        <Input
-                          value={activeTower.name}
-                          onChange={(e) => updateActiveTower("name", e.target.value)}
-                          placeholder="Ej: Torre A, Torre Norte"
-                          className="h-9 text-xs bg-white"
-                        />
+
+                        {activeFloorName !== "Cubierta" && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-muted-foreground mr-1">Rápido:</span>
+                            {[4, 6, 8, 10].map((num) => (
+                              <button
+                                key={num}
+                                type="button"
+                                onClick={() => applyPresetCount(num)}
+                                className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-bold text-slate-700 hover:bg-orange-50 hover:border-orange-300 transition-colors cursor-pointer"
+                              >
+                                {num}
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={selectAllCandidates}
+                              className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-bold text-orange-700 hover:bg-orange-50 hover:border-orange-300 transition-colors cursor-pointer ml-0.5"
+                            >
+                              Todos
+                            </button>
+                            <button
+                              type="button"
+                              onClick={clearActiveFloorDeps}
+                              className="px-1.5 py-0.5 rounded bg-white border border-slate-200 text-[10px] font-bold text-slate-400 hover:text-rose-600 transition-colors cursor-pointer ml-0.5"
+                            >
+                              Limpiar
+                            </button>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Rango de Pisos: Desde y Hasta */}
-                      <div className="sm:col-span-4 grid grid-cols-2 gap-2">
-                        <div>
-                          <Label className="text-xs font-bold text-slate-700 mb-1 block">
-                            Desde Piso
-                          </Label>
-                          <Input
-                            type="number"
-                            min="1"
-                            max="50"
-                            value={activeTower.startFloor}
-                            onChange={(e) =>
-                              updateActiveTower("startFloor", parseInt(e.target.value, 10) || 1)
-                            }
-                            className="h-9 text-xs bg-white text-center font-bold"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs font-bold text-slate-700 mb-1 block">
-                            Hasta Piso
-                          </Label>
-                          <Input
-                            type="number"
-                            min="1"
-                            max="50"
-                            value={activeTower.endFloor}
-                            onChange={(e) =>
-                              updateActiveTower("endFloor", parseInt(e.target.value, 10) || 1)
-                            }
-                            className="h-9 text-xs bg-white text-center font-bold"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Departamentos por Piso */}
-                      <div className="sm:col-span-4">
-                        <Label className="text-xs font-bold text-slate-700 mb-1 block">
-                          Departamentos por Piso
-                        </Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          max="30"
-                          value={activeTower.departmentsPerFloor}
-                          onChange={(e) =>
-                            updateActiveTower(
-                              "departmentsPerFloor",
-                              parseInt(e.target.value, 10) || 1
-                            )
-                          }
-                          className="h-9 text-xs bg-white text-center font-bold text-orange-700"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Cubierta y resumen de la torre */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200">
-                      <label className="flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={activeTower.hasCubierta}
-                          onChange={(e) => updateActiveTower("hasCubierta", e.target.checked)}
-                          className="h-4 w-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
-                        />
-                        <span className="text-xs font-semibold text-slate-800">
-                          Incluir piso de Cubierta / Azotea técnica
-                        </span>
-                      </label>
-
-                      <div className="text-xs text-slate-600 flex items-center gap-2">
-                        <span>Pisos generados:</span>
-                        <Badge variant="secondary" className="font-bold">
-                          {generateTowerFloorList(activeTower).length} niveles
-                        </Badge>
-                        <span>Dptos estimados:</span>
-                        <Badge variant="secondary" className="font-bold text-orange-700">
-                          {(generateTowerFloorList(activeTower).length - (activeTower.hasCubierta ? 1 : 0)) * activeTower.departmentsPerFloor} dptos
-                        </Badge>
-                      </div>
-                    </div>
-
-                    {/* Botón para ver/ajustar departamentos individuales (opcional) */}
-                    <div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-xs text-slate-600 hover:text-slate-900 gap-1 h-7 px-2"
-                        onClick={() => setExpandedCustomFloors(!expandedCustomFloors)}
-                      >
-                        <SlidersHorizontal className="h-3 w-3" />
-                        <span>
-                          {expandedCustomFloors
-                            ? "Ocultar vista previa de pisos y dptos"
-                            : "Ver / Ajustar departamentos por piso específico (opcional)"}
-                        </span>
-                      </Button>
-
-                      {expandedCustomFloors && (
-                        <div className="mt-2 border rounded-xl p-3 bg-white space-y-2 max-h-56 overflow-y-auto scrollbar-thin">
-                          <p className="text-[11px] text-muted-foreground">
-                            Los departamentos se numeran automáticamente según el piso (ej: Piso 4 con 6 dptos genera 401 al 406). Si un piso tiene una cantidad distinta (ej: Penthouse), cámbiala aquí:
+                      {/* Caja interactiva de departamentos */}
+                      {activeFloorName === "Cubierta" ? (
+                        <div className="border border-dashed border-slate-200 rounded-xl h-80 flex flex-col items-center justify-center text-center p-6 bg-slate-50/50">
+                          <Layers className="h-8 w-8 text-slate-300 mb-2" />
+                          <p className="text-xs font-bold text-slate-700">Cubierta / Azotea Técnica</p>
+                          <p className="text-[11px] text-slate-400 max-w-xs mt-1">
+                            Este nivel no lleva departamentos habitacionales. Sus actividades se asignan como recinto global o sala técnica.
                           </p>
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            {generateTowerFloorList(activeTower)
-                              .filter((f) => f !== "Cubierta")
-                              .map((floor) => {
-                                const currentDeps =
-                                  activeTower.customFloorDepartments[floor] ||
-                                  generateDepartmentsForFloor(
-                                    floor,
-                                    activeTower.departmentsPerFloor
-                                  );
+                        </div>
+                      ) : (
+                        <div className="border border-slate-200 rounded-xl p-3.5 bg-slate-50/40 h-80 flex flex-col justify-between">
+                          {/* Grilla visual de departamentos */}
+                          <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin space-y-2">
+                            <p className="text-[10.5px] text-slate-500 font-medium flex items-center justify-between">
+                              <span>Toca cada depto para activarlo o desactivarlo:</span>
+                              <span className="font-bold text-orange-700">
+                                {activeFloorDeps.length} seleccionados
+                              </span>
+                            </p>
 
+                            <div className="grid grid-cols-4 sm:grid-cols-4 gap-2 pt-1">
+                              {candidateDeps.map((dep) => {
+                                const isSelected = activeFloorDeps.includes(dep);
                                 return (
-                                  <div
-                                    key={floor}
-                                    className="p-2 rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-between text-xs"
+                                  <button
+                                    key={dep}
+                                    type="button"
+                                    onClick={() => toggleDepartment(dep)}
+                                    className={cn(
+                                      "h-9 rounded-xl border text-xs font-black transition-all flex items-center justify-center gap-1 cursor-pointer select-none",
+                                      isSelected
+                                        ? "bg-orange-500 text-white border-orange-600 shadow-xs ring-1 ring-orange-400"
+                                        : "bg-white border-slate-200 text-slate-650 hover:bg-orange-50 hover:border-orange-300"
+                                    )}
                                   >
-                                    <span className="font-bold text-slate-700">{floor}</span>
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-[10px] text-muted-foreground font-mono">
-                                        {currentDeps.length} dptos
-                                      </span>
-                                    </div>
-                                  </div>
+                                    {isSelected && <span className="text-[10px]">✓</span>}
+                                    <span>{dep}</span>
+                                  </button>
                                 );
                               })}
+                            </div>
+                          </div>
+
+                          {/* Barra de acciones al pie de la grilla */}
+                          <div className="pt-2 border-t border-slate-200 space-y-2 shrink-0">
+                            {/* Input para agregar departamento con nombre único */}
+                            <form onSubmit={handleAddCustomDepto} className="flex gap-2">
+                              <Input
+                                value={customDeptoInput}
+                                onChange={(e) => setCustomDeptoInput(e.target.value)}
+                                placeholder={`Ej: ${activeFloorName.replace(/\D/g, "")}01-A, Penthouse`}
+                                className="h-7 text-xs bg-white"
+                              />
+                              <Button
+                                type="submit"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs px-2.5 font-bold shrink-0 bg-white"
+                              >
+                                + Añadir
+                              </Button>
+                            </form>
+
+                            {/* Botón potente: Copiar a toda la torre */}
+                            <Button
+                              type="button"
+                              onClick={copyToAllFloorsOfTower}
+                              variant="outline"
+                              size="sm"
+                              className="w-full h-8 text-xs font-bold border-orange-200 bg-orange-50/70 text-orange-850 hover:bg-orange-100 hover:border-orange-300 gap-1.5"
+                            >
+                              <Copy className="h-3.5 w-3.5 text-orange-600" />
+                              <span>
+                                Copiar {activeFloorDeps.length} dptos a TODOS los pisos de {activeTower.name}
+                              </span>
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -1335,7 +1572,7 @@ export default function ProjectForm({
               )}
 
               {/* ===================== RESUMEN CORDIAL EN VIVO ===================== */}
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3.5 text-xs text-emerald-950 space-y-1.5 shadow-2xs">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-xs text-emerald-950 space-y-1 shadow-2xs">
                 <div className="flex items-center justify-between font-bold text-emerald-900 border-b border-emerald-200/60 pb-1">
                   <span className="flex items-center gap-1.5">
                     <Sparkles className="h-4 w-4 text-emerald-600" />
@@ -1357,7 +1594,7 @@ export default function ProjectForm({
                   <div>
                     <span className="text-slate-500 block text-[10px]">Departamentos totales:</span>
                     <span className="font-bold text-orange-700 font-mono">
-                      ~{summary.totalDepartmentsCount} dptos
+                      {summary.totalDepartmentsCount} dptos
                     </span>
                   </div>
 
@@ -1380,8 +1617,8 @@ export default function ProjectForm({
           )}
         </div>
 
-        {/* PIE DE PÁGINA CON BOTONES CLAROS Y CORDIALES */}
-        <DialogFooter className="border-t bg-slate-50 px-6 py-3.5 flex items-center justify-between shrink-0">
+        {/* PIE DE PÁGINA CON BOTONES */}
+        <DialogFooter className="border-t bg-slate-50 px-6 py-3 flex items-center justify-between shrink-0">
           <div>
             {isEditing && canDelete && step === 1 && (
               <Button
