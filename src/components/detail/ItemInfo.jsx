@@ -3,7 +3,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import ItemScopeSummary from '@/components/common/ItemScopeSummary';
-import { getUnitLabel } from '@/constants/activityScope';
 
 const statusLabel = {
   pendiente: 'Pendiente', en_ejecucion: 'En ejecución', completado: 'Completado', bloqueado: 'Bloqueado',
@@ -55,12 +54,12 @@ export default function ItemInfo({ item, hasUnsignedLogs }) {
             <p className="text-sm font-medium">{item.end_date || '—'}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Cuadrilla</p>
-            <p className="text-sm font-medium">{item.crew_name || '—'} ({crewSize} pers.)</p>
+            <p className="text-xs text-muted-foreground">Personal Asignado</p>
+            <p className="text-sm font-medium">{crewSize} integrante(s)</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Ejecutado / Plan </p>
-            <p className="text-sm font-medium">{item.executed_qty || 0} / {item.planned_qty} {getUnitLabel(item.unit)}</p>
+            <p className="text-xs text-muted-foreground">% Avance Actual</p>
+            <p className="text-sm font-bold text-slate-800">{pct}% de 100%</p>
           </div>
         </div>
         <div className="space-y-1">

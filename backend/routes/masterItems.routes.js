@@ -344,14 +344,13 @@ function validateMasterItemPayload(payload) {
     [payload.start_date, "Debe ingresar la fecha de inicio"],
     [payload.end_date, "Debe ingresar la fecha de termino"],
     [payload.unit, "Debe seleccionar una unidad de medición"],
-    [payload.crew_name, "Debe ingresar el nombre de la cuadrilla"],
-    [payload.observations, "Debe ingresar observaciones"],
+    [payload.crew_name || "Equipo General", "Debe ingresar el nombre de la cuadrilla"],
   ];
   const missingField = requiredFields.find(([value]) => isBlank(value));
   if (missingField) return missingField[1];
 
-  const unit = String(payload.unit || "").trim().toLowerCase();
-  if (!VALID_UNITS.includes(unit)) {
+  const unit = String(payload.unit || "%").trim().toLowerCase();
+  if (unit && !VALID_UNITS.includes(unit)) {
     return `Unidad de medición inválida. Debe ser una de: ${VALID_UNITS.join(", ")}`;
   }
 
@@ -417,55 +416,21 @@ function validateDailyLogPayload(payload) {
   const requiredFields = [
     [payload.date, "Debe ingresar la fecha del reporte"],
     [payload.supervisor, "Debe seleccionar un supervisor"],
-    [payload.crew_name, "Debe ingresar la cuadrilla"],
-    [payload.capataz_name, "Debe ingresar el nombre del capataz"],
-    [payload.observations, "Debe ingresar observaciones"],
+    [payload.crew_name || "Equipo General", "Debe ingresar la cuadrilla"],
+    [payload.capataz_name || "Capataz", "Debe ingresar el nombre del capataz"],
   ];
   const missingField = requiredFields.find(([value]) => isBlank(value));
   if (missingField) return missingField[1];
 
-  if (!payload.executed_today || toNumber(payload.executed_today) <= 0) {
-    return "Debe ingresar la cantidad ejecutada hoy";
-  }
+  const execVal = toNumber(payload.executed_today);
+  const isZero = Boolean(payload.is_zero_progress) || (payload.has_restriction && execVal === 0);
 
-  if (!payload.hours_worked || toNumber(payload.hours_worked) <= 0) {
-    return "Debe ingresar las horas trabajadas";
+  if (!isZero && (!payload.executed_today || execVal <= 0)) {
+    return "Debe ingresar el avance ejecutado hoy";
   }
 
   if (payload.has_restriction && isBlank(payload.restriction_detail)) {
-    return "Debe ingresar el detalle de la restriccion";
-  }
-
-  const crewWorkers = safeParseArray(payload.crew_workers).filter(
-    (worker) =>
-      !isBlank(worker?.name) ||
-      !isBlank(worker?.role) ||
-      !isBlank(worker?.hours) ||
-      !isBlank(worker?.executed),
-  );
-  if (crewWorkers.length === 0) {
-    return "Debe agregar al menos una persona en personal presente";
-  }
-  if (
-    crewWorkers.some(
-      (worker) =>
-        isBlank(worker?.name) ||
-        isBlank(worker?.role) ||
-        !worker?.hours ||
-        toNumber(worker.hours) <= 0 ||
-        worker?.executed === undefined ||
-        worker?.executed === null ||
-        String(worker.executed).trim() === "" ||
-        Number(worker.executed) < 0,
-    )
-  ) {
-    return "Cada persona presente debe tener nombre, cargo, horas y ejecutado";
-  }
-
-  const executedToday = toNumber(payload.executed_today);
-  const hasWorkerExceedingToday = crewWorkers.some((w) => toNumber(w.executed) > executedToday);
-  if (hasWorkerExceedingToday) {
-    return `El ejecutado de cada integrante no puede superar la cantidad ejecutada hoy (${executedToday}).`;
+    return "Debe ingresar el detalle de la restricción";
   }
 
   return "";
@@ -551,7 +516,7 @@ router.post("/", (req, res) => {
       const totalPlanned = floorsList.reduce((sum, f) => {
         const q = floor_planned_qtys && floor_planned_qtys[f] !== undefined
           ? toNumber(floor_planned_qtys[f])
-          : toNumber(planned_qty) / floorsList.length;
+          : 100;
         return sum + q;
       }, 0);
 
@@ -616,7 +581,7 @@ router.post("/", (req, res) => {
           const floorVal = floorsList[index];
           const childPlanned = floor_planned_qtys && floor_planned_qtys[floorVal] !== undefined
             ? toNumber(floor_planned_qtys[floorVal])
-            : toNumber(planned_qty) / floorsList.length;
+            : 100;
 
           const childValues = [
             project || "",

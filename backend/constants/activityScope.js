@@ -38,6 +38,7 @@ const SCOPE_TYPE_OPTIONS = [
 ];
 
 const MEASUREMENT_UNITS = [
+  { value: "%", label: "Porcentaje (%)" },
   { value: "und", label: "Unidad (und)" },
   { value: "m", label: "Metro (m)" },
   { value: "ml", label: "Metro lineal (ml)" },

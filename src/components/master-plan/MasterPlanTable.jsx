@@ -398,25 +398,16 @@ export default function MasterPlanTable({
                     <span className="text-muted-foreground">Término:</span>{" "}
                     {row.end_date || "—"}
                   </div>
-                  <div>
-                    <span className="text-muted-foreground">Plan:</span>{" "}
-                    {row.planned_qty} {row.unit}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Ejecutado:</span>{" "}
-                    {row.executed_qty || 0}
-                  </div>
                 </div>
                 <div className="mb-2 space-y-1">
                   <div className="flex justify-between text-[11px]">
-                    <span className="text-muted-foreground">% Avance</span>
-                    <span className="font-medium">{pct}%</span>
+                    <span className="text-muted-foreground">% Avance actual</span>
+                    <span className="font-bold text-slate-800">{pct}%</span>
                   </div>
-                  <Progress value={pct} className="h-1.5" />
+                  <Progress value={pct} className="h-2 rounded-full" />
                 </div>
                 <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span>{row.crew_name || "Sin cuadrilla"}</span>
-                  <span>{itemLogs.length} reportes</span>
+                  <span>{itemLogs.length} reportes registrados</span>
                 </div>
                 <div className="mt-2 flex items-center justify-end gap-1">
                   <Button
@@ -499,11 +490,7 @@ export default function MasterPlanTable({
                 <TableHead className="min-w-[92px] whitespace-nowrap text-xs hidden lg:table-cell">
                   F. Término
                 </TableHead>
-                <TableHead className="text-right text-xs">Plan</TableHead>
-                <TableHead className="text-right text-xs">Ejecutado</TableHead>
-                <TableHead className="text-xs hidden lg:table-cell">Und</TableHead>
-                <TableHead className="text-xs hidden lg:table-cell">Cuadrilla</TableHead>
-                <TableHead className="min-w-[100px] text-xs">
+                <TableHead className="min-w-[120px] text-xs">
                   % Avance
                 </TableHead>
                 <TableHead className="text-xs">Estado</TableHead>
@@ -604,24 +591,13 @@ export default function MasterPlanTable({
                         {row.end_date || "—"}
                       </TableCell>
 
-                      <TableCell className="text-right font-mono">
-                        {formatNumber(row.planned_qty)}
-                      </TableCell>
-
-                      <TableCell className="text-right font-mono font-medium">
-                        {formatNumber(row.executed_qty)}
-                      </TableCell>
-
-                      <TableCell className="text-muted-foreground hidden lg:table-cell">
-                        {row.unit || "—"}
-                      </TableCell>
-
-                      <TableCell className="hidden lg:table-cell">{row.crew_name || "—"}</TableCell>
-
-                      <TableCell>
+                      <TableCell className="min-w-[120px]">
                         <div className="space-y-1">
-                          <span className="font-medium">{pct}%</span>
-                          <Progress value={pct} className="h-1.5" />
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="font-mono font-bold text-slate-800">{pct}%</span>
+                            <span className="text-[10px] text-muted-foreground">de 100%</span>
+                          </div>
+                          <Progress value={pct} className="h-2 rounded-full" />
                         </div>
                       </TableCell>
 
@@ -753,21 +729,13 @@ export default function MasterPlanTable({
 
                                 <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-muted-foreground">
                                   <div>
-                                    Ejecutado:{" "}
+                                    Avance del día:{" "}
                                     <span className="font-mono font-bold text-emerald-700 text-xs">
-                                      +{formatNumber(log.executed_today)}
-                                    </span>{" "}
-                                    {row.unit}
+                                      +{formatNumber(log.executed_today)}%
+                                    </span>
                                   </div>
 
-                                  {log.hours_worked && (
-                                    <div>
-                                      Horas:{" "}
-                                      <span className="font-medium text-foreground">
-                                        {formatNumber(log.hours_worked)}h
-                                      </span>
-                                    </div>
-                                  )}
+                                  {/* Horas ejecutadas removidas */}
 
                                   {Array.isArray(log.crew_workers) &&
                                     log.crew_workers.length > 0 && (

@@ -35,11 +35,9 @@ import { usePermissions } from "@/lib/PermissionsContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { RAW_DEFAULT_ACTIVITIES } from "@/constants/defaultActivities";
-import { AutocompleteInput } from "@/components/ui/autocomplete-input";
 import { AutocompleteSelect } from "@/components/ui/autocomplete-select";
 import {
   SCOPE_TYPES,
-  MEASUREMENT_UNITS,
   isVerticalScope,
   normalizeScopeTypeValue,
 } from "@/constants/activityScope";
@@ -99,9 +97,9 @@ const INITIAL_FORM = {
   activity: "",
   start_date: "",
   end_date: "",
-  planned_qty: "",
-  unit: "und",
-  crew_name: "",
+  planned_qty: 100,
+  unit: "%",
+  crew_name: "Equipo General",
   status: "pendiente",
   release_status: "no_liberado",
   restrictions: "",
@@ -129,9 +127,9 @@ function getFormFromEditItem(editItem) {
     activity: editItem.activity || "",
     start_date: editItem.start_date || "",
     end_date: editItem.end_date || "",
-    planned_qty: editItem.planned_qty ?? "",
-    unit: editItem.unit || "und",
-    crew_name: editItem.crew_name || "",
+    planned_qty: editItem.planned_qty ?? 100,
+    unit: editItem.unit || "%",
+    crew_name: editItem.crew_name || "Equipo General",
     status: editItem.status || "pendiente",
     release_status: editItem.release_status || "no_liberado",
     restrictions: editItem.restrictions || "",
@@ -311,7 +309,6 @@ export default function MasterItemForm({
     (w) => w.project === form.project
   );
   const uniqueCrewNames = getCatalogOptions(allItems.map((i) => i.crew_name));
-  const crewCatalogConflict = findCatalogConflict(form.crew_name, uniqueCrewNames);
 
   const selectedProjectObj = projects.find((p) => p.name === form.project);
 
@@ -328,14 +325,34 @@ export default function MasterItemForm({
   }
 
   const towerOnlyOptions = useMemo(() => {
+    if (selectedProjectObj) {
+      const parsedDeps = safeParseJson(selectedProjectObj.departments, {});
+      if (Array.isArray(parsedDeps.__towers_config__) && parsedDeps.__towers_config__.length > 0) {
+        return parsedDeps.__towers_config__.map((t) => t.name);
+      }
+    }
     return getTowerOnlyOptions(selectedProjectObj?.tower_count);
   }, [selectedProjectObj]);
 
-  const isTowerValid = !form.tower || towerOnlyOptions.includes(form.tower);
-  const isActivityValid = !form.activity || activityOptions.includes(form.activity);
+  const isTowerValid = !form.tower || towerOnlyOptions.length === 0 || towerOnlyOptions.includes(form.tower);
+  const isActivityValid = true;
 
   const projectTowerFloors = useMemo(() => {
     if (selectedProjectObj) {
+      const parsedDeps = safeParseJson(selectedProjectObj.departments, {});
+      if (Array.isArray(parsedDeps.__towers_config__)) {
+        const currentTower = parsedDeps.__towers_config__.find((t) => t.name === form.tower);
+        if (currentTower) {
+          const list = [];
+          if (currentTower.hasRoof) list.push("Cubierta");
+          const start = Number(currentTower.startFloor) || 1;
+          const end = Number(currentTower.endFloor) || 15;
+          for (let f = end; f >= start; f--) {
+            list.push(`Piso ${f}`);
+          }
+          if (list.length > 0) return list;
+        }
+      }
       const pFloors = safeParseJson(selectedProjectObj.floors, []);
       const valid = pFloors.filter(
         (f) => !/Subterr[aá]neo/i.test(f) && !/Exterior/i.test(f) && !/Comun/i.test(f)
@@ -345,7 +362,7 @@ export default function MasterItemForm({
     return ALL_FLOOR_OPTIONS
       .filter((f) => !/Subterr[aá]neo/i.test(f.value) && f.value !== "Exteriores" && f.value !== "Áreas Comunes")
       .map((f) => f.value);
-  }, [selectedProjectObj]);
+  }, [selectedProjectObj, form.tower]);
 
   const projectSubterraneos = useMemo(() => {
     if (selectedProjectObj) {
@@ -379,13 +396,14 @@ export default function MasterItemForm({
 
   const deptoOptions = useMemo(() => {
     if (selectedProjectObj && form.floors?.[0]) {
-      const floorDeps = safeParseJson(selectedProjectObj.departments, {})[form.floors[0]] || [];
-      return [...floorDeps]
+      const parsedDeps = safeParseJson(selectedProjectObj.departments, {});
+      const towerDeps = (parsedDeps[form.tower] && parsedDeps[form.tower][form.floors[0]]) || parsedDeps[form.floors[0]] || [];
+      return [...towerDeps]
         .sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
         .map((d) => ({ label: String(d), value: String(d) }));
     }
     return [];
-  }, [selectedProjectObj, form.floors]);
+  }, [selectedProjectObj, form.tower, form.floors]);
 
   const handleZoneChange = (newZone) => {
     if (editItem) return;
@@ -737,14 +755,7 @@ export default function MasterItemForm({
         if (!form.floors || form.floors.length === 0) {
           return "Debe seleccionar al menos un piso.";
         }
-        if (floorSelectionMode === "multiple") {
-          const missingQty = form.floors.some(
-            (f) => !form.floor_planned_qtys?.[f] || Number(form.floor_planned_qtys[f]) <= 0
-          );
-          if (missingQty) {
-            return "Debe ingresar una cantidad planificada mayor a 0 para cada piso seleccionado.";
-          }
-        }
+        /* Multiple floors validated */
       }
     } else if (zoneType === "subterraneo") {
       const finalSub = isCustomSubterraneo ? customSubterraneo.trim() : selectedSubterraneo;
@@ -774,9 +785,7 @@ export default function MasterItemForm({
       return "Debe seleccionar una actividad.";
     }
 
-    if (!isActivityValid) {
-      return "Debe seleccionar una actividad del catálogo definido.";
-    }
+    /* isActivityValid */
 
     if (!form.start_date) {
       return "Debe ingresar la fecha de inicio.";
@@ -786,32 +795,7 @@ export default function MasterItemForm({
       return "Debe ingresar la fecha de término.";
     }
 
-    if (!(zoneType === "torre" && towerScopeMode === "pasillo" && floorSelectionMode === "multiple")) {
-      if (!form.planned_qty || Number(form.planned_qty) <= 0) {
-        return "Debe ingresar una cantidad planificada mayor a 0.";
-      }
-    }
-
-    if (!form.unit?.trim()) {
-      return "Debe seleccionar una unidad de medición.";
-    }
-
-    if (!MEASUREMENT_UNITS.some((entry) => entry.value === form.unit)) {
-      return "Debe seleccionar una unidad de medición válida.";
-    }
-
-    if (!form.crew_name?.trim()) {
-      return "Debe ingresar el nombre de la cuadrilla.";
-    }
-
-    if (crewCatalogConflict) {
-      return `La cuadrilla ya existe como "${crewCatalogConflict}". Usa ese nombre para evitar duplicados por mayúsculas o tildes.`;
-    }
-
     const filledMembers = crewMembers.filter((member) => member.name.trim() || member.role.trim());
-    if (filledMembers.length === 0) {
-      return "Debe agregar al menos una persona en Integrantes de la Cuadrilla.";
-    }
 
     if (hasDuplicateMembers) {
       return "No se puede repetir el mismo integrante dentro de la cuadrilla.";
@@ -825,9 +809,7 @@ export default function MasterItemForm({
       return "Debe ingresar el detalle de la restricción.";
     }
 
-    if (!form.observations?.trim()) {
-      return "Debe ingresar observaciones.";
-    }
+    /* observations optional */
 
     return "";
   };
@@ -900,11 +882,11 @@ export default function MasterItemForm({
       zone_type: finalZoneType,
       departments: finalDepartments,
       activity: form.activity.trim(),
-      planned_qty: Number(form.planned_qty || 0),
-      unit: form.unit.trim() || "und",
-      crew_name: form.crew_name.trim(),
+      planned_qty: 100,
+      unit: "%",
+      crew_name: form.crew_name?.trim() || "Equipo General",
       restrictions: hasRestriction ? form.restrictions.trim() : "",
-      observations: form.observations.trim(),
+      observations: form.observations?.trim() || "Sin observaciones",
       crew_size: validMembers.length,
       crew_members: JSON.stringify(validMembers),
     };
@@ -1816,151 +1798,24 @@ export default function MasterItemForm({
             </div>
           </div>
 
-          {floorSelectionMode === "multiple" && form.floors.length > 0 ? (
-            <div className="space-y-3 border rounded-xl p-3.5 bg-slate-50/70">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-bold text-slate-700">
-                  Cantidad Planificada por Piso
-                </Label>
-                <span className="text-[11px] text-muted-foreground font-medium">
-                  {form.floors.length} pisos seleccionados
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
-                {form.floors.map((floor) => (
-                  <div
-                    key={floor}
-                    className="flex items-center justify-between gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-xs min-w-0"
-                  >
-                    <span
-                      className="text-xs font-medium text-slate-700 truncate min-w-0"
-                      title={floor}
-                    >
-                      {floor}
-                    </span>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <Input
-                        type="number"
-                        min="0"
-                        value={form.floor_planned_qtys?.[floor] || ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          const newQtys = {
-                            ...form.floor_planned_qtys,
-                            [floor]: val,
-                          };
-                          updateFormField("floor_planned_qtys", newQtys);
-
-                          const total = Object.values(newQtys).reduce(
-                            (sum, q) => sum + (Number(q) || 0),
-                            0
-                          );
-                          updateFormField("planned_qty", total || "");
-                        }}
-                        placeholder="0"
-                        className="h-8 text-xs w-20 sm:w-24 text-right bg-white"
-                      />
-                      <span
-                        className="text-[11px] font-semibold text-slate-500 w-6 truncate text-left"
-                        title={form.unit}
-                      >
-                        {MEASUREMENT_UNITS.find((u) => u.value === form.unit)?.label || form.unit}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-200">
-                <div className="text-xs font-medium text-slate-600">
-                  Total acumulado:{" "}
-                  <span className="text-primary font-black text-sm ml-1">
-                    {form.planned_qty || 0}
-                  </span>{" "}
-                  <span className="font-semibold text-slate-500">
-                    {MEASUREMENT_UNITS.find((u) => u.value === form.unit)?.label || form.unit}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label className="text-xs text-muted-foreground whitespace-nowrap">
-                    Unidad:
-                  </Label>
-                  <Select
-                    value={form.unit}
-                    onValueChange={(value) => updateFormField("unit", value)}
-                    disabled={isEditingMultiFloor}
-                  >
-                    <SelectTrigger className="h-8 text-xs w-32 bg-white">
-                      <SelectValue placeholder="Unidad" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {MEASUREMENT_UNITS.map((unitOption) => (
-                        <SelectItem key={unitOption.value} value={unitOption.value}>
-                          {unitOption.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+          <div className="rounded-xl border border-orange-200/60 bg-orange-50/40 p-3.5 flex items-center justify-between text-xs">
+            <div>
+              <span className="font-bold text-slate-800 block">Medición de Avance:</span>
+              <span className="text-slate-500 text-[11px]">
+                {floorSelectionMode === "multiple" && form.floors.length > 0
+                  ? `Avance medido por porcentaje (0% a 100%) para cada uno de los ${form.floors.length} pisos seleccionados.`
+                  : "Esta actividad se medirá por porcentaje de avance (0% al 100%)."}
+              </span>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <Label className="text-xs">Plan cantidad *</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={form.planned_qty}
-                  onChange={(e) =>
-                    updateFormField("planned_qty", e.target.value)
-                  }
-                />
-              </div>
-
-              <div>
-                <Label className="text-xs">Unidad de medición *</Label>
-                <Select
-                  value={form.unit}
-                  onValueChange={(value) => updateFormField("unit", value)}
-                  disabled={isEditingMultiFloor}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar unidad" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {MEASUREMENT_UNITS.map((unitOption) => (
-                      <SelectItem key={unitOption.value} value={unitOption.value}>
-                        {unitOption.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <Label className="text-xs">Nombre Cuadrilla</Label>
-            <AutocompleteInput
-              value={form.crew_name}
-              onChange={(e) => updateFormField("crew_name", e.target.value)}
-              options={uniqueCrewNames}
-              placeholder="Ej: Cuadrilla Reyes"
-              disabled={isEditingMultiFloor}
-            />
-            {crewCatalogConflict && (
-              <p className="mt-1 text-xs text-red-600">
-                Ya existe como "{crewCatalogConflict}". Usa ese texto.
-              </p>
-            )}
+            <span className="bg-orange-500 text-white font-bold text-xs px-2.5 py-1 rounded-lg">
+              Meta: 100%
+            </span>
           </div>
 
           <div>
             <div className="mb-2 flex items-center justify-between">
               <Label className="text-xs">
-                Integrantes de la Cuadrilla
+                Integrantes Asignados (Personal)
                 {validMemberCount > 0 && (
                   <span className="ml-1.5 text-muted-foreground">
                     ({validMemberCount} persona

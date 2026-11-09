@@ -32,7 +32,8 @@ export default function AppLayout() {
       : []),
     { path: "/master-plan", label: "Plan Maestro", icon: ClipboardList },
     { path: "/restrictions", label: "Restricciones", icon: AlertTriangle },
-    { path: "/analytics", label: "Productividad", icon: TrendingUp },
+    /* Se oculta productividad según simplificación solicitada */
+    // { path: "/analytics", label: "Productividad", icon: TrendingUp },
     ...(showPersonalNav
       ? [{ path: "/workers", label: "Personal", icon: Users }]
       : []),

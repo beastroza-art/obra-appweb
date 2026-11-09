@@ -266,21 +266,19 @@ function isBlank(value) {
 
 function validateDailyLogPayload(payload) {
   const { floor_data } = payload;
-  const hasFloorObservations = floor_data && Object.values(floor_data).some(fd => !isBlank(fd?.observations));
 
   const requiredFields = [
     [payload.date, "Debe ingresar la fecha del reporte"],
     [payload.supervisor, "Debe seleccionar un supervisor"],
-    [payload.crew_name, "Debe ingresar la cuadrilla"],
-    [payload.capataz_name, "Debe ingresar el nombre del capataz"],
-    [hasFloorObservations ? "ok" : payload.observations, "Debe ingresar observaciones"],
+    [payload.crew_name || "Equipo General", "Debe ingresar la cuadrilla"],
+    [payload.capataz_name || "Capataz", "Debe ingresar el nombre del capataz"],
   ];
   const missingField = requiredFields.find(([value]) => isBlank(value));
   if (missingField) return missingField[1];
 
   const isZeroProgress =
     (payload.has_restriction && (payload.is_zero_progress === true || payload.is_zero_progress === "true" || payload.is_zero_progress === 1 || payload.is_zero_progress === "1")) ||
-    (toNumber(payload.executed_today) === 0 && toNumber(payload.hours_worked) === 0 && payload.has_restriction);
+    (toNumber(payload.executed_today) === 0 && payload.has_restriction);
 
   if (floor_data) {
     const floors = Object.keys(floor_data);
@@ -292,64 +290,20 @@ function validateDailyLogPayload(payload) {
       const fd = floor_data[fl];
       const flZero =
         (fd.has_restriction && (fd.is_zero_progress === true || fd.is_zero_progress === "true" || fd.is_zero_progress === 1 || fd.is_zero_progress === "1")) ||
-        (toNumber(fd.executed_today) === 0 && toNumber(fd.hours_worked !== undefined && fd.hours_worked !== "" ? fd.hours_worked : payload.hours_worked) === 0 && fd.has_restriction);
+        (toNumber(fd.executed_today) === 0 && fd.has_restriction);
       const val = toNumber(fd.executed_today);
-      const hoursVal = toNumber(fd.hours_worked !== undefined && fd.hours_worked !== "" ? fd.hours_worked : payload.hours_worked);
 
       if (flZero || val === 0) {
         if (val < 0) return `La cantidad ejecutada para el ${fl} no puede ser menor a 0.`;
-        if (hoursVal < 0) return `Las horas trabajadas para el ${fl} no pueden ser menores a 0.`;
         if (!fd.has_restriction || isBlank(fd.restriction_detail)) {
           return `Para reportar avance 0 en ${fl} debe indicar la restricción o motivo que impidió el avance`;
         }
       } else {
-        if (!fd.executed_today || val <= 0) return `Debe ingresar la cantidad ejecutada hoy para el ${fl}`;
-        if (hoursVal <= 0) return `Debe ingresar las horas trabajadas para el ${fl}`;
+        if (!fd.executed_today || val <= 0) return `Debe ingresar el avance ejecutado hoy para el ${fl}`;
       }
 
       if (fd.has_restriction && isBlank(fd.restriction_detail)) {
         return `Debe ingresar el detalle de la restricción para el ${fl}`;
-      }
-
-      const flWorkersRaw = Array.isArray(fd.crew_workers) && fd.crew_workers.length > 0
-        ? fd.crew_workers
-        : safeParseArray(payload.crew_workers);
-
-      const flWorkers = flWorkersRaw.filter(
-        (w) => !isBlank(w?.name) || !isBlank(w?.role) || !isBlank(w?.hours) || !isBlank(w?.executed)
-      );
-
-      if (!flZero && val > 0 && flWorkers.length === 0) {
-        return `Debe agregar al menos una persona en personal presente para el ${fl}`;
-      }
-
-      if (
-        flWorkers.some(
-          (worker) =>
-            isBlank(worker?.name) ||
-            isBlank(worker?.role) ||
-            (!flZero && (!worker?.hours || toNumber(worker.hours) <= 0)) ||
-            toNumber(worker?.hours) < 0 ||
-            toNumber(worker?.executed) < 0
-        )
-      ) {
-        return flZero
-          ? `Cada persona en ${fl} debe tener nombre y cargo válidos`
-          : `Cada persona en ${fl} debe tener nombre, cargo, horas y ejecutado`;
-      }
-
-      const hasWorkerExceedingToday = flWorkers.some(
-        (w) => toNumber(w.executed) > val
-      );
-      if (!flZero && hasWorkerExceedingToday) {
-        return `En el ${fl}, el ejecutado de cada integrante no puede superar la cantidad ejecutada hoy (${val}).`;
-      }
-
-      const hasWorkerExceedingHours = flWorkers.some(
-        (w) => toNumber(w.hours) > hoursVal
-      );
-      if (!flZero && hoursVal > 0 && hasWorkerExceedingHours) {
-        return `En el ${fl}, las horas de cada integrante no pueden superar las horas trabajadas (${hoursVal}h).`;
       }
     }
 
@@ -357,69 +311,21 @@ function validateDailyLogPayload(payload) {
   }
 
   const execVal = toNumber(payload.executed_today);
-  const hoursVal = toNumber(payload.hours_worked);
   if (isZeroProgress || execVal === 0) {
     if (execVal < 0) {
       return "La cantidad ejecutada hoy no puede ser menor a 0";
-    }
-    if (hoursVal < 0) {
-      return "Las horas trabajadas no pueden ser menores a 0";
     }
     if (!payload.has_restriction || isBlank(payload.restriction_detail)) {
       return "Para reportar avance 0 debe indicar la restricción o motivo que impidió el avance";
     }
   } else {
     if (!payload.executed_today || execVal <= 0) {
-      return "Debe ingresar la cantidad ejecutada hoy";
-    }
-    if (!payload.hours_worked || hoursVal <= 0) {
-      return "Debe ingresar las horas trabajadas";
+      return "Debe ingresar el avance ejecutado hoy";
     }
   }
 
   if (payload.has_restriction && isBlank(payload.restriction_detail)) {
     return "Debe ingresar el detalle de la restriccion";
-  }
-
-  const crewWorkers = safeParseArray(payload.crew_workers).filter(
-    (worker) =>
-      !isBlank(worker?.name) ||
-      !isBlank(worker?.role) ||
-      !isBlank(worker?.hours) ||
-      !isBlank(worker?.executed)
-  );
-
-  if (!isZeroProgress && execVal > 0 && crewWorkers.length === 0) {
-    return "Debe agregar al menos una persona en personal presente";
-  }
-
-  if (
-    crewWorkers.some(
-      (worker) =>
-        isBlank(worker?.name) ||
-        isBlank(worker?.role) ||
-        (!isZeroProgress && (!worker?.hours || toNumber(worker.hours) <= 0)) ||
-        toNumber(worker?.hours) < 0 ||
-        toNumber(worker?.executed) < 0
-    )
-  ) {
-    return isZeroProgress
-      ? "Cada persona presente debe tener nombre y cargo válidos"
-      : "Cada persona presente debe tener nombre, cargo, horas y ejecutado";
-  }
-
-  const hasWorkerExceedingToday = crewWorkers.some(
-    (w) => toNumber(w.executed) > execVal
-  );
-  if (!isZeroProgress && hasWorkerExceedingToday) {
-    return `El ejecutado de cada integrante no puede superar la cantidad ejecutada hoy (${execVal}).`;
-  }
-
-  const hasWorkerExceedingHours = crewWorkers.some(
-    (w) => toNumber(w.hours) > hoursVal
-  );
-  if (!isZeroProgress && hoursVal > 0 && hasWorkerExceedingHours) {
-    return `Las horas de cada integrante no pueden superar las horas trabajadas (${hoursVal}h).`;
   }
 
   return "";

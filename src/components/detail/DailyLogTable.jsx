@@ -30,8 +30,7 @@ export default function DailyLogTable({ logs, onAddLog, onEditLog, onDeleteLog }
               <TableRow className="bg-muted/50">
                 <TableHead className="text-xs w-[110px] whitespace-nowrap">Fecha</TableHead>
                 <TableHead className="text-xs">Supervisor</TableHead>
-                <TableHead className="text-xs text-right">Ejecutado</TableHead>
-                <TableHead className="text-xs text-right">Horas</TableHead>
+                <TableHead className="text-xs text-right">% Avance</TableHead>
                 <TableHead className="text-xs text-center">Restricción</TableHead>
                 <TableHead className="text-xs">Observaciones</TableHead>
                 <TableHead className="w-16"></TableHead>
@@ -40,7 +39,7 @@ export default function DailyLogTable({ logs, onAddLog, onEditLog, onDeleteLog }
             <TableBody>
               {logs.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
+                  <TableCell colSpan={6} className="text-center text-sm text-muted-foreground py-8">
                     Sin registros en la bitácora
                   </TableCell>
                 </TableRow>
@@ -67,8 +66,7 @@ export default function DailyLogTable({ logs, onAddLog, onEditLog, onDeleteLog }
                         </div>
                       </TableCell>
                       <TableCell>{log.supervisor || '—'}</TableCell>
-                      <TableCell className="text-right font-mono font-medium">{log.executed_today}</TableCell>
-                      <TableCell className="text-right">{log.hours_worked || '—'}h</TableCell>
+                      <TableCell className="text-right font-mono font-bold text-emerald-700">+{log.executed_today}%</TableCell>
                       <TableCell className="text-center">
                         {log.has_restriction ? (
                           <Badge className="bg-red-50 text-red-700 text-[10px]">Sí</Badge>
@@ -111,32 +109,24 @@ export default function DailyLogTable({ logs, onAddLog, onEditLog, onDeleteLog }
 
                     {expandedLog === log.id && log.crew_workers?.length > 0 && (
                       <TableRow className="bg-muted/20">
-                        <TableCell colSpan={7} className="p-4">
+                        <TableCell colSpan={6} className="p-4">
                         <div className="space-y-2">
                           <p className="text-xs font-semibold text-muted-foreground mb-3">
-                            Integrantes de la cuadrilla — {log.crew_name}
+                            Integrantes presentes en faena
                           </p>
                           <div className="overflow-x-auto">
                             <table className="w-full text-[11px]">
                               <thead>
                                 <tr className="border-b bg-background">
-                                  <th className="text-left px-2 py-1.5">Nombre</th>
-                                  <th className="text-left px-2 py-1.5">Rol</th>
-                                  <th className="text-right px-2 py-1.5">Horas</th>
-                                  <th className="text-right px-2 py-1.5">Ejecutado</th>
-                                  <th className="text-right px-2 py-1.5">Rendimiento</th>
+                                  <th className="text-left px-2 py-1.5 font-semibold text-slate-700">Nombre</th>
+                                  <th className="text-left px-2 py-1.5 font-semibold text-slate-700">Cargo / Rol</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {log.crew_workers.map((w, idx) => (
                                   <tr key={idx} className="border-b hover:bg-muted/50">
-                                    <td className="px-2 py-1.5 font-medium">{w.name}</td>
+                                    <td className="px-2 py-1.5 font-medium text-slate-800">{w.name}</td>
                                     <td className="px-2 py-1.5 text-muted-foreground">{w.role || '—'}</td>
-                                    <td className="px-2 py-1.5 text-right">{w.hours || 0}h</td>
-                                    <td className="px-2 py-1.5 text-right font-mono font-semibold">{w.executed || 0}</td>
-                                    <td className="px-2 py-1.5 text-right font-mono text-accent font-semibold">
-                                      {w.hours > 0 ? (w.executed / w.hours).toFixed(2) : '—'} /h
-                                    </td>
                                   </tr>
                                 ))}
                               </tbody>

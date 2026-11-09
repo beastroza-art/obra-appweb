@@ -9,9 +9,6 @@ import {
   Users,
   Camera,
   X,
-  TrendingUp,
-  TrendingDown,
-  Target,
   PenTool,
   Check,
   AlertTriangle,
@@ -45,7 +42,6 @@ import {
 } from "@/components/ui/accordion";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { AutocompleteInput } from "@/components/ui/autocomplete-input";
 import ItemScopeSummary from "@/components/common/ItemScopeSummary";
 
 import SignaturePad from "./SignaturePad";
@@ -57,9 +53,9 @@ const SERVER_URL = (
     : (import.meta.env.VITE_API_URL || "http://localhost:3001/api")
 ).replace(/\/api\/?$/, "");
 
-const REQUIRE_PHOTO = true;
+const REQUIRE_PHOTO = false;
 const REQUIRE_SIGNATURE = false;
-const REQUIRE_CAPATAZ = true;
+const REQUIRE_CAPATAZ = false;
 
 const EMPTY_WORKER = {
   name: "",
@@ -71,9 +67,10 @@ const EMPTY_WORKER = {
 const getInitialForm = (userName = "") => ({
   date: format(new Date(), "yyyy-MM-dd"),
   supervisor: userName || "",
-  crew_name: "",
+  crew_name: "Equipo General",
+  target_reached: "",
   executed_today: "",
-  hours_worked: "",
+  hours_worked: 8,
   has_restriction: false,
   is_zero_progress: false,
   restriction_detail: "",
@@ -82,13 +79,13 @@ const getInitialForm = (userName = "") => ({
 });
 
 function buildCrewWorkers(workers) {
-  return workers
-    .filter((worker) => worker.name?.trim() && worker.role?.trim())
+  return (workers || [])
+    .filter((worker) => worker && worker.name?.trim())
     .map((worker) => ({
       name: worker.name.trim(),
-      role: worker.role.trim(),
-      hours: Number(worker.hours) || 0,
-      executed: Number(worker.executed) || 0,
+      role: worker.role?.trim() || "Maestro",
+      hours: 8,
+      executed: 0,
     }));
 }
 
@@ -193,8 +190,9 @@ function hasUnsavedProgress(formData, workersList, photosList, sig, floorsData) 
 
 function createInitialFloorState(crewMembers = [], defaultHours = "") {
   return {
+    target_reached: "",
     executed_today: "",
-    hours_worked: defaultHours || "",
+    hours_worked: 8,
     has_restriction: false,
     is_zero_progress: false,
     restriction_detail: "",
@@ -744,7 +742,7 @@ export default function DailyLogForm({
       ...getInitialForm(userName),
       supervisor: project?.supervisor || userName || "",
       crew_name: resolvedMasterItem?.crew_name || "",
-      capataz_name: project?.capataz || "",
+      capataz_name: project?.capataz || userName || "Capataz",
     });
 
     const crewMembers = getCrewMembers(resolvedMasterItem, masterItems);
@@ -891,6 +889,51 @@ export default function DailyLogForm({
         },
       };
     });
+    if (error) setError("");
+  };
+
+  const currentAccumulated = Number(
+    isMultiFloor && activeChild
+      ? activeChild.executed_qty || 0
+      : resolvedMasterItem?.executed_qty || 0
+  );
+
+  const displayedTargetReached = isMultiFloor
+    ? activeFloorData?.target_reached !== undefined && activeFloorData?.target_reached !== ""
+      ? activeFloorData.target_reached
+      : activeFloorData?.executed_today !== undefined && activeFloorData?.executed_today !== ""
+      ? Math.min(100, currentAccumulated + Number(activeFloorData.executed_today))
+      : ""
+    : form.target_reached !== undefined && form.target_reached !== ""
+    ? form.target_reached
+    : form.executed_today !== undefined && form.executed_today !== ""
+    ? Math.min(100, currentAccumulated + Number(form.executed_today))
+    : "";
+
+  const handleTargetReachedChange = (value) => {
+    if (value === "" || value === undefined) {
+      if (isMultiFloor) {
+        updateActiveFloorField("target_reached", "");
+        updateActiveFloorField("executed_today", "");
+      } else {
+        setForm((prev) => ({ ...prev, target_reached: "", executed_today: "" }));
+      }
+      return;
+    }
+
+    const num = Math.min(100, Math.max(0, Number(value) || 0));
+    const diff = Math.max(0, num - currentAccumulated);
+
+    if (isMultiFloor) {
+      updateActiveFloorField("target_reached", num);
+      updateActiveFloorField("executed_today", String(diff));
+    } else {
+      setForm((prev) => ({
+        ...prev,
+        target_reached: num,
+        executed_today: String(diff),
+      }));
+    }
     if (error) setError("");
   };
 
@@ -1387,26 +1430,8 @@ export default function DailyLogForm({
     crewWorkersList.some((w) => (Number(w.hours) || 0) > currentHoursLimit);
 
   const hasInvalidWorker = displayedWorkers.some((worker) => {
-    const hasAnyValue =
-      worker.name?.trim() ||
-      worker.role?.trim() ||
-      worker.hours ||
-      worker.executed;
-
-    return (
-      hasAnyValue &&
-      (!worker.name?.trim() ||
-        !worker.role?.trim() ||
-        (isZeroProgress
-          ? (worker.hours !== "" && Number(worker.hours) < 0) ||
-            (worker.executed !== "" && Number(worker.executed) < 0)
-          : !worker.hours ||
-            Number(worker.hours) <= 0 ||
-            worker.executed === "" ||
-            worker.executed === null ||
-            worker.executed === undefined ||
-            Number(worker.executed) < 0))
-    );
+    const hasAnyValue = worker.name?.trim() || worker.role?.trim();
+    return hasAnyValue && !worker.name?.trim();
   });
 
   const isFloorComplete = (fl) => {
@@ -1414,66 +1439,13 @@ export default function DailyLogForm({
     if (!fd) return false;
     const zeroProg = Boolean(
       fd.is_zero_progress ||
-      (fd.has_restriction &&
-        fd.executed_today !== "" &&
-        Number(fd.executed_today) === 0 &&
-        fd.hours_worked !== "" &&
-        Number(fd.hours_worked) === 0)
+      (fd.has_restriction && fd.executed_today !== "" && Number(fd.executed_today) === 0)
     );
     if (!zeroProg) {
       const floorExecVal = Number(fd.executed_today || 0);
-      const floorHoursVal = Number(fd.hours_worked || 0);
-      if (!fd.executed_today || floorExecVal <= 0) return false;
-      if (!fd.hours_worked || floorHoursVal <= 0) return false;
-      const cw = buildCrewWorkers(fd.workers || []);
-      if (cw.length === 0) return false;
-      if (cw.some((w) => (Number(w.executed) || 0) > floorExecVal)) return false;
-      if (floorHoursVal > 0 && cw.some((w) => (Number(w.hours) || 0) > floorHoursVal)) return false;
-      const hasInv = (fd.workers || []).some((w) => {
-        const hasAny =
-          w.name?.trim() || w.role?.trim() || w.hours || w.executed;
-        return (
-          hasAny &&
-          (!w.name?.trim() ||
-            !w.role?.trim() ||
-            !w.hours ||
-            Number(w.hours) <= 0 ||
-            w.executed === "" ||
-            w.executed === null ||
-            w.executed === undefined ||
-            Number(w.executed) < 0)
-        );
-      });
-      if (hasInv) return false;
-
-      const child = childItems.find(
-        (c) => String(c.floor).trim().toLowerCase() === String(fl).trim().toLowerCase()
-      );
-      const floorRemaining = child
-        ? Math.max(
-            Number(child.planned_qty || 0) -
-              Number(child.executed_qty || 0),
-            0
-          )
-        : 999999;
-      if (floorExecVal > floorRemaining) return false;
-    } else {
-      if (Number(fd.executed_today || 0) < 0) return false;
-      if (Number(fd.hours_worked || 0) < 0) return false;
-      const hasInv = (fd.workers || []).some((w) => {
-        const hasAny =
-          w.name?.trim() || w.role?.trim() || w.hours || w.executed;
-        return (
-          hasAny &&
-          (!w.name?.trim() ||
-            !w.role?.trim() ||
-            (w.hours !== "" && Number(w.hours) < 0) ||
-            (w.executed !== "" && Number(w.executed) < 0))
-        );
-      });
-      if (hasInv) return false;
+      const hasProgress = (fd.target_reached !== "" && fd.target_reached !== undefined) || floorExecVal > 0;
+      if (!hasProgress) return false;
     }
-    if (!fd.observations?.trim()) return false;
     if (fd.has_restriction && !fd.restriction_detail?.trim()) return false;
     if (REQUIRE_PHOTO && (!fd.photos || fd.photos.length === 0)) return false;
     const sig = fd.signatureImage || signatureImage;
@@ -1533,15 +1505,9 @@ export default function DailyLogForm({
         throw new Error("No hay ítem maestro asociado.");
       }
       if (!form.date) throw new Error("Debe ingresar la fecha del reporte.");
-      if (!form.supervisor?.trim()) {
-        throw new Error("Debe seleccionar un supervisor.");
-      }
-      if (!form.crew_name?.trim()) {
-        throw new Error("Debe ingresar la cuadrilla.");
-      }
-      if (REQUIRE_CAPATAZ && !form.capataz_name?.trim()) {
-        throw new Error("Debe ingresar el nombre del capataz.");
-      }
+      form.supervisor = form.supervisor?.trim() || project?.supervisor || userName || "Supervisor";
+      form.crew_name = form.crew_name?.trim() || "Equipo General";
+      form.capataz_name = form.capataz_name?.trim() || project?.capataz || userName || "Capataz";
       if (uploadingPhotos) {
         throw new Error("Espera a que terminen de subir las fotos.");
       }
@@ -1572,11 +1538,7 @@ export default function DailyLogForm({
                 `Debe ingresar la cantidad ejecutada hoy para el ${fl}.`
               );
             }
-            if (!fd.hours_worked || floorHours <= 0) {
-              throw new Error(
-                `Debe ingresar las horas trabajadas para el ${fl}.`
-              );
-            }
+            /* hours not required */
 
             const child = childItems.find(
               (c) => String(c.floor).trim().toLowerCase() === String(fl).trim().toLowerCase()
@@ -1597,7 +1559,7 @@ export default function DailyLogForm({
           }
 
           if (!fd.observations?.trim()) {
-            throw new Error(`Debe ingresar observaciones para el ${fl}.`);
+            fd.observations = "Sin observaciones";
           }
           if (fd.has_restriction && !fd.restriction_detail?.trim()) {
             throw new Error(
@@ -1615,58 +1577,13 @@ export default function DailyLogForm({
               }))
             : rawCrewWorkers;
 
-          if (!floorZeroProg && crewWorkers.length === 0) {
-            throw new Error(
-              `Debe agregar al menos una persona en personal presente para el ${fl}.`
-            );
-          }
+          /* workers optional */
 
-          const hasExceedingExec = crewWorkers.some(
-            (w) => (Number(w.executed) || 0) > floorExec
-          );
-          if (!floorZeroProg && hasExceedingExec) {
-            throw new Error(
-              `En el ${fl}, el ejecutado de cada integrante no puede superar la cantidad ejecutada hoy (${floorExec}).`
-            );
-          }
+          /* exec limit removed */
 
-          const floorHoursLimit = Number(fd.hours_worked || 0);
-          const hasExceedingHours = crewWorkers.some(
-            (w) => (Number(w.hours) || 0) > floorHoursLimit
-          );
-          if (!floorZeroProg && floorHoursLimit > 0 && hasExceedingHours) {
-            throw new Error(
-              `En el ${fl}, las horas de cada integrante no pueden superar las horas trabajadas (${floorHoursLimit}h).`
-            );
-          }
+          /* hours limit removed */
 
-          if (
-            (fd.workers || []).some((worker) => {
-              const hasAnyValue =
-                worker.name?.trim() ||
-                worker.role?.trim() ||
-                worker.hours ||
-                worker.executed;
-              return (
-                hasAnyValue &&
-                (!worker.name?.trim() ||
-                  !worker.role?.trim() ||
-                  (floorZeroProg
-                    ? (worker.hours !== "" && Number(worker.hours) < 0) ||
-                      (worker.executed !== "" && Number(worker.executed) < 0)
-                    : !worker.hours ||
-                      Number(worker.hours) <= 0 ||
-                      worker.executed === "" ||
-                      worker.executed === null ||
-                      worker.executed === undefined ||
-                      Number(worker.executed) < 0))
-              );
-            })
-          ) {
-            throw new Error(
-              `En el ${fl}, cada persona presente debe tener nombre, cargo, horas y ejecutado válidos.`
-            );
-          }
+          /* workers validation removed */
 
           const floorTotalHours = floorZeroProg
             ? 0
@@ -1694,7 +1611,7 @@ export default function DailyLogForm({
 
           compiledFloorData[fl] = {
             executed_today: floorExec,
-            hours_worked: floorTotalHours,
+            hours_worked: floorZeroProg ? 0 : 8,
             has_restriction: Boolean(fd.has_restriction),
             is_zero_progress: floorZeroProg,
             restriction_detail: fd.restriction_detail || "",
@@ -1734,7 +1651,7 @@ export default function DailyLogForm({
           crew_name:
             form.crew_name || resolvedMasterItem?.crew_name || "",
           executed_today: totalExecuted,
-          hours_worked: maxHours,
+          hours_worked: 8,
           crew_workers: Object.values(compiledFloorData).flatMap((f) => f.crew_workers || []),
           capataz_signature: normalizedSignature,
           master_item_id: resolvedMasterItem?.id,
@@ -1766,41 +1683,16 @@ export default function DailyLogForm({
           form.hours_worked !== "" &&
           Number(form.hours_worked) === 0)
       );
-      if (!isZeroProgress) {
-        if (!form.executed_today || Number(form.executed_today) <= 0) {
-          throw new Error("Debe ingresar la cantidad ejecutada hoy.");
-        }
-        if (!form.hours_worked || Number(form.hours_worked) <= 0) {
-          throw new Error("Debe ingresar las horas trabajadas.");
-        }
-      } else {
-        if (Number(form.executed_today || 0) < 0) {
-          throw new Error("La cantidad ejecutada no puede ser menor a 0.");
-        }
-        if (Number(form.hours_worked || 0) < 0) {
-          throw new Error("Las horas trabajadas no pueden ser menores a 0.");
-        }
+      const currentAcc = Number(resolvedMasterItem?.executed_qty || 0);
+      let executedToday = Number(form.executed_today || 0);
+      if (form.target_reached !== undefined && form.target_reached !== "" && Number(form.target_reached) >= currentAcc) {
+        executedToday = Number(form.target_reached) - currentAcc;
       }
-      if (!form.observations?.trim()) {
-        throw new Error("Debe ingresar observaciones.");
-      }
-      if (form.has_restriction && !form.restriction_detail?.trim()) {
-        throw new Error("Debe ingresar el detalle de la restriccion.");
-      }
-
-      const executedToday = Number(form.executed_today || 0);
 
       if (!isZeroProgress) {
-        if (!initialLogData && remainingQty <= 0) {
-          throw new Error("Este ítem ya alcanzó la cantidad planificada.");
-        }
-
-        if (executedToday > remainingQty) {
-          throw new Error(
-            `La cantidad ejecutada hoy no puede superar el pendiente (${remainingQty} ${
-              resolvedMasterItem?.unit || "und"
-            }).`
-          );
+        const hasProg = (form.target_reached !== "" && form.target_reached !== undefined) || executedToday > 0;
+        if (!hasProg) {
+          throw new Error("Debe indicar a qué porcentaje llegó hoy.");
         }
       }
 
@@ -1822,71 +1714,19 @@ export default function DailyLogForm({
           }))
         : rawCrewWorkers;
 
-      if (!isZeroProgress && crewWorkers.length === 0) {
-        throw new Error(
-          "Debe agregar al menos una persona en personal presente."
-        );
-      }
+      /* workers optional */
 
-      const hasWorkerExceedingToday = crewWorkers.some(
-        (w) => (Number(w.executed) || 0) > executedToday
-      );
+      /* exec limit removed */
 
-      if (!isZeroProgress && hasWorkerExceedingToday) {
-        throw new Error(
-          `El ejecutado de cada integrante no puede superar la cantidad ejecutada hoy (${executedToday}).`
-        );
-      }
+      /* hours limit removed */
 
-      const formHoursLimit = Number(form.hours_worked || 0);
-      const hasWorkerExceedingHours = crewWorkers.some(
-        (w) => (Number(w.hours) || 0) > formHoursLimit
-      );
-
-      if (!isZeroProgress && formHoursLimit > 0 && hasWorkerExceedingHours) {
-        throw new Error(
-          `Las horas de cada integrante no pueden superar las horas trabajadas (${formHoursLimit}h).`
-        );
-      }
-
-      if (
-        workers.some((worker) => {
-          const hasAnyValue =
-            worker.name?.trim() ||
-            worker.role?.trim() ||
-            worker.hours ||
-            worker.executed;
-
-          return (
-            hasAnyValue &&
-            (!worker.name?.trim() ||
-              !worker.role?.trim() ||
-              (isZeroProgress
-                ? (worker.hours !== "" && Number(worker.hours) < 0) ||
-                  (worker.executed !== "" && Number(worker.executed) < 0)
-                : !worker.hours ||
-                  Number(worker.hours) <= 0 ||
-                  worker.executed === "" ||
-                  worker.executed === null ||
-                  worker.executed === undefined ||
-                  Number(worker.executed) < 0))
-          );
-        })
-      ) {
-        throw new Error(
-          isZeroProgress
-            ? "Cada persona presente debe tener nombre, cargo, horas y ejecutado válidos (mínimo 0)."
-            : "Cada persona presente debe tener nombre, cargo, horas y ejecutado."
-        );
-      }
+      /* workers validation removed */
 
       const totalHours = isZeroProgress
         ? 0
         : calculateTotalHours(form.hours_worked, crewWorkers);
 
-      if (totalHours > 10) {
-        throw new Error("No se pueden registrar más de 10 horas en un día.");
-      }
+      /* totalHours check removed */
 
       let normalizedSignature = signatureImage;
       if (
@@ -1905,7 +1745,7 @@ export default function DailyLogForm({
           initialLogData?.crew_name ||
           "",
         executed_today: executedToday,
-        hours_worked: totalHours,
+        hours_worked: isZeroProgress ? 0 : 8,
         crew_workers: crewWorkers,
         is_zero_progress: Boolean(isZeroProgress),
         capataz_signature: normalizedSignature,
@@ -1949,34 +1789,19 @@ export default function DailyLogForm({
 
   const isSaveDisabled = isMultiFloor
     ? !form.date ||
-      !form.supervisor?.trim() ||
-      !form.crew_name?.trim() ||
-      (REQUIRE_CAPATAZ && !form.capataz_name?.trim()) ||
       selectedFloors.length === 0 ||
       !selectedFloors.every((fl) => isFloorComplete(fl)) ||
       saving ||
       uploadingPhotos
     : !form.date ||
-      !form.supervisor?.trim() ||
-      !form.crew_name?.trim() ||
-      (isZeroProgress
-        ? Number(form.executed_today) < 0 || Number(form.hours_worked) < 0
-        : !form.executed_today ||
-          Number(form.executed_today) <= 0 ||
-          !form.hours_worked ||
-          Number(form.hours_worked) <= 0) ||
-      !form.observations?.trim() ||
+      (!isZeroProgress &&
+        (!form.executed_today || Number(form.executed_today) <= 0) &&
+        (form.target_reached === "" || form.target_reached === undefined)) ||
       (form.has_restriction && !form.restriction_detail?.trim()) ||
-      (!isZeroProgress && buildCrewWorkers(workers).length === 0) ||
       hasInvalidWorker ||
-      (!isZeroProgress && !initialLogData && remainingQty <= 0) ||
-      (!isZeroProgress && executedTodayQty > remainingQty) ||
-      hasWorkerExceedingToday ||
-      hasWorkerExceedingHours ||
       saving ||
       uploadingPhotos ||
       (REQUIRE_PHOTO && !initialLogData && photos.length === 0) ||
-      (REQUIRE_CAPATAZ && !form.capataz_name?.trim()) ||
       (REQUIRE_SIGNATURE && !signatureImage);
 
   const handleUserCancel = () => {
@@ -2086,21 +1911,7 @@ export default function DailyLogForm({
             </div>
           </div>
 
-          <div>
-            <Label className="text-xs">Cuadrilla</Label>
-            <Input
-              value={form.crew_name}
-              onChange={(e) => updateFormField("crew_name", e.target.value)}
-              placeholder="Ej: Cuadrilla Eléctrica A"
-              disabled={isCrewNameFixed}
-            />
-
-            {isCrewNameFixed && (
-              <p className="mt-1 text-[10px] text-muted-foreground">
-                Cuadrilla fijada por el ítem maestro.
-              </p>
-            )}
-          </div>
+          {/* Cuadrilla reemplazada por Integrantes de obra */}
 
           {/* Floor selection for items with multiple floors */}
           {resolvedMasterItem && getFloorList(resolvedMasterItem.floor).length > 1 && (
@@ -2346,124 +2157,120 @@ export default function DailyLogForm({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <Label className="text-xs">
-                    Ejecutado hoy {isMultiFloor ? `(${activeFloor})` : ""} *
-                  </Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max={remainingQty || undefined}
-                    value={displayedExecuted}
-                    onChange={(e) => handleExecutedChange(e.target.value)}
-                    disabled={isZeroProgress}
-                    className={
-                      isZeroProgress
-                        ? "bg-amber-50/70 border-amber-300 text-amber-900 font-bold cursor-not-allowed"
-                        : ""
-                    }
-                  />
-
-                  {resolvedMasterItem && (
-                    <p className="mt-1 text-[10px] text-muted-foreground">
-                      {isZeroProgress
-                        ? "0 fijado por paro de actividad (sin avance hoy)."
-                        : isMultiFloor
-                        ? `Pendiente de ${activeFloor}: ${remainingQty} ${
-                            resolvedMasterItem?.unit || "und"
-                          }.`
-                        : `Máximo permitido: ${remainingQty} ${
-                            resolvedMasterItem?.unit || "und"
-                          }.`}
-                    </p>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 space-y-3 shadow-2xs">
+                {/* Estado previo: cuánto lleva acumulado */}
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-600">Avance que lleva:</span>
+                    <span className="text-sm font-black text-slate-900 font-mono">{currentAccumulated}%</span>
+                  </div>
+                  {displayedTargetReached !== "" && Number(displayedTargetReached) > currentAccumulated ? (
+                    <span className="text-xs font-bold text-emerald-700 bg-emerald-100/90 px-2.5 py-0.5 rounded-lg border border-emerald-300">
+                      +{Number(displayedTargetReached) - currentAccumulated}% hoy → Llega a {displayedTargetReached}%
+                    </span>
+                  ) : isZeroProgress ? (
+                    <span className="text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-lg">
+                      Sin avance hoy (0%)
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-400 font-medium">
+                      Meta: 100%
+                    </span>
                   )}
+                </div>
 
-                  {!isZeroProgress && goalInfo && (
+                {/* Barra de progreso visual con el estado actual */}
+                <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden flex shadow-inner">
+                  <div
+                    className="bg-slate-500 h-full transition-all duration-300"
+                    style={{ width: `${Math.min(100, currentAccumulated)}%` }}
+                    title={`Lleva: ${currentAccumulated}%`}
+                  />
+                  {!isZeroProgress && displayedTargetReached !== "" && Number(displayedTargetReached) > currentAccumulated && (
                     <div
-                      className={`mt-1.5 flex items-center gap-1.5 rounded-md px-2 py-1 text-xs ${
-                        goalInfo.onTarget
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-amber-50 text-amber-700"
-                      }`}
-                    >
-                      {goalInfo.onTarget ? (
-                        <>
-                          <TrendingUp className="h-3 w-3" />
-                          <span>
-                            Dentro de meta. Meta: {goalInfo.dailyGoal}{" "}
-                            {resolvedMasterItem?.unit || "und"}/día
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <TrendingDown className="h-3 w-3" />
-                          <span>
-                            Bajo meta. Meta: {goalInfo.dailyGoal}{" "}
-                            {resolvedMasterItem?.unit || "und"}/día
-                          </span>
-                        </>
-                      )}
-                    </div>
+                      className="bg-gradient-to-r from-orange-500 to-amber-500 h-full transition-all duration-300 animate-pulse"
+                      style={{ width: `${Math.min(100 - currentAccumulated, Number(displayedTargetReached) - currentAccumulated)}%` }}
+                      title={`Avanza hoy: +${Number(displayedTargetReached) - currentAccumulated}%`}
+                    />
                   )}
                 </div>
 
-                <div>
-                  <Label className="text-xs">
-                    Horas trabajadas {isMultiFloor ? `(${activeFloor})` : ""} *
-                  </Label>
-                  <Input
-                    type="number"
-                    step="0.5"
-                    placeholder={isZeroProgress ? "0" : "Se calcula del personal si se deja vacío"}
-                    value={displayedHours}
-                    onChange={(e) => handleHoursChange(e.target.value)}
-                    disabled={isZeroProgress}
-                    className={
-                      isZeroProgress
-                        ? "bg-amber-50/70 border-amber-300 text-amber-900 font-bold cursor-not-allowed"
-                        : ""
-                    }
-                  />
-                  <p className="mt-1 text-[10px] text-muted-foreground">
-                    {isZeroProgress
-                      ? "0 horas fijadas por paro de actividad."
-                      : "Máximo recomendado: 10h/día."}
-                  </p>
-                </div>
-              </div>
+                {/* Campo de entrada principal: ¿A cuánto llegó hoy? */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-1 items-end">
+                  <div className="sm:col-span-8 space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-800 block">
+                      ¿A cuánto llegó hoy? {isMultiFloor ? `(${activeFloor})` : ""} *
+                    </Label>
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min={currentAccumulated}
+                        max="100"
+                        value={isZeroProgress ? currentAccumulated : displayedTargetReached}
+                        onChange={(e) => handleTargetReachedChange(e.target.value)}
+                        disabled={isZeroProgress}
+                        placeholder={`Ej: ${Math.min(100, currentAccumulated + 20)}`}
+                        className={cn(
+                          "h-11 text-base font-bold text-slate-900 rounded-xl pr-8 bg-white border-slate-200 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10",
+                          isZeroProgress && "bg-amber-50/70 border-amber-300 text-amber-900 cursor-not-allowed"
+                        )}
+                      />
+                      <span className="absolute right-3 top-3 text-sm font-bold text-slate-400 pointer-events-none">%</span>
+                    </div>
+                  </div>
 
-              {resolvedMasterItem && (
-                <div className="flex flex-wrap gap-3 rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                  <span>
-                    <Target className="mr-0.5 inline h-3 w-3" />
-                    Total {isMultiFloor ? `(${activeFloor})` : ""}:{" "}
-                    <b>
-                      {isMultiFloor && activeChild
-                        ? activeChild.planned_qty
-                        : resolvedMasterItem.planned_qty}{" "}
-                      {resolvedMasterItem.unit || "und"}
-                    </b>
-                  </span>
-                  <span>
-                    Ejecutado acum.:{" "}
-                    <b>
-                      {isMultiFloor && activeChild
-                        ? activeChild.executed_qty || 0
-                        : resolvedMasterItem.executed_qty || 0}
-                    </b>
-                  </span>
-                  <span>
-                    Pendiente: <b>{remainingQty}</b>
-                  </span>
+                  {/* Botón 100% Terminado */}
+                  <div className="sm:col-span-4">
+                    <Button
+                      type="button"
+                      disabled={isZeroProgress}
+                      onClick={() => handleTargetReachedChange(100)}
+                      className={cn(
+                        "w-full h-11 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs",
+                        Number(displayedTargetReached) === 100 && !isZeroProgress
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm ring-2 ring-emerald-300"
+                          : "bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300"
+                      )}
+                    >
+                      ✓ 100% Terminado
+                    </Button>
+                  </div>
                 </div>
-              )}
+
+                {/* Botones de incremento rápido */}
+                {!isZeroProgress && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-[11px] text-slate-400 mr-1 font-medium">Fijar rápido:</span>
+                    {[10, 20, 25, 50, 75].map((val) => {
+                      const projected = Math.min(100, currentAccumulated + val);
+                      if (projected <= currentAccumulated) return null;
+                      return (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => handleTargetReachedChange(projected)}
+                          className={cn(
+                            "px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer",
+                            Number(displayedTargetReached) === projected
+                              ? "bg-orange-500 text-white border-orange-600 shadow-2xs"
+                              : "bg-white border-slate-200 text-slate-700 hover:bg-orange-50 hover:border-orange-300"
+                          )}
+                        >
+                          +{val}% (a {projected}%)
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Horas de jornada removidas según simplificación */}
+              </div>
 
               <div>
                 <div className="mb-2 flex items-center justify-between">
                   <Label className="flex items-center gap-1.5 text-xs font-semibold">
                     <Users className="h-3.5 w-3.5" />
-                    Personal presente {isMultiFloor ? `(${activeFloor})` : ""}
+                    Integrantes presentes {isMultiFloor ? `(${activeFloor})` : ""}
                   </Label>
 
                   <Button
@@ -2514,7 +2321,7 @@ export default function DailyLogForm({
                     return (
                       <div
                         key={index}
-                        className="grid grid-cols-1 gap-2 rounded-md border border-border/60 p-2 sm:grid-cols-[minmax(140px,1.4fr)_minmax(120px,1fr)_96px_112px_32px] sm:items-center sm:border-0 sm:p-0"
+                        className="grid grid-cols-1 gap-2 rounded-md border border-border/60 p-2 sm:grid-cols-[minmax(180px,1.4fr)_minmax(160px,1.2fr)_36px] sm:items-center sm:border-0 sm:p-0"
                       >
                         <Select
                           value={worker.name}
@@ -2574,33 +2381,9 @@ export default function DailyLogForm({
                           className="h-8 text-xs bg-muted/50 text-muted-foreground select-none"
                         />
 
-                        <Input
-                          type="number"
-                          placeholder={isZeroProgress ? "0" : "Horas"}
-                          className={cn(
-                            "h-8 text-xs",
-                            isZeroProgress && "bg-slate-100 text-slate-500 font-semibold cursor-not-allowed"
-                          )}
-                          disabled={isZeroProgress}
-                          value={isZeroProgress ? "0" : worker.hours}
-                          onChange={(e) =>
-                            updateWorker(index, "hours", e.target.value)
-                          }
-                        />
+                        {/* Horas del integrante removidas */}
 
-                        <Input
-                          type="number"
-                          placeholder={isZeroProgress ? "0" : "Ejecutado"}
-                          className={cn(
-                            "h-8 text-xs",
-                            isZeroProgress && "bg-slate-100 text-slate-500 font-semibold cursor-not-allowed"
-                          )}
-                          disabled={isZeroProgress}
-                          value={isZeroProgress ? "0" : worker.executed}
-                          onChange={(e) =>
-                            updateWorker(index, "executed", e.target.value)
-                          }
-                        />
+                        {/* worker.executed removido por enfoque porcentaje global */}
 
                         <Button
                           type="button"
@@ -2617,20 +2400,10 @@ export default function DailyLogForm({
 
                   {displayedWorkers.length > 0 && (
                     <p className="hidden text-[10px] text-muted-foreground sm:block">
-                      Columnas: Nombre / Cargo / Horas / Ejecutado
+                      Columnas: Integrante / Cargo asignado
                     </p>
                   )}
 
-                  {hasWorkerExceedingToday && (
-                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                      El ejecutado de cada integrante no puede superar el ejecutado {isMultiFloor ? `de ${activeFloor}` : "total"} ({executedTodayQty}).
-                    </div>
-                  )}
-                  {hasWorkerExceedingHours && (
-                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                      Las horas de algún integrante superan las horas trabajadas {isMultiFloor ? `de ${activeFloor}` : ""} ({currentHoursLimit}h).
-                    </div>
-                  )}
                 </div>
               </div>
 

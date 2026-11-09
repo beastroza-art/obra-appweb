@@ -3,7 +3,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/lib/AuthContext";
 import { Link, useParams, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Camera, FileText, Users, Layers, ArrowUpDown, Lock, Unlock } from "lucide-react";
+import { ArrowLeft, Camera, FileText, Layers, Lock, Unlock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -13,7 +13,6 @@ import { exportReportPDF } from "@/utils/exportPDF";
 
 import ItemInfo from "../components/detail/ItemInfo";
 import DailyLogTable from "../components/detail/DailyLogTable";
-import WorkerProductivity from "../components/detail/WorkerProductivity";
 import PhotoGallery from "../components/detail/PhotoGallery";
 import DailyLogForm from "../components/forms/DailyLogForm";
 import ItemScopeSummary from "../components/common/ItemScopeSummary";
@@ -362,11 +361,12 @@ export default function ItemDetail() {
     0,
   );
 
+  const currentItemPct = item?.planned_qty > 0 ? Math.min(100, Math.round(((item.executed_qty || 0) / item.planned_qty) * 100)) : 0;
   const overviewCards = [
     {
       title: "Reportes diarios",
       value: scopedLogs.length,
-      hint: `Ejecutado en bitácora: ${totalExecutedInLogs}`,
+      hint: `${scopedLogs.length} reportes registrados`,
       icon: FileText,
     },
     {
@@ -376,10 +376,10 @@ export default function ItemDetail() {
       icon: Camera,
     },
     {
-      title: "Productividad",
-      value: productivityRows,
-      hint: "Registros individuales",
-      icon: Users,
+      title: "% Avance Actual",
+      value: `${currentItemPct}%`,
+      hint: "Meta total: 100%",
+      icon: Layers,
     },
   ];
 
@@ -526,7 +526,7 @@ export default function ItemDetail() {
                       </div>
                       <span className="w-8 text-right font-semibold">{fPct}%</span>
                       <span className="w-24 text-right">
-                        {fItem.executed_qty || 0} / {fItem.planned_qty} {fItem.unit}
+                        {fPct}%
                       </span>
                       
                       <div className="flex items-center gap-2 shrink-0">
@@ -601,7 +601,7 @@ export default function ItemDetail() {
             />
           </div>
 
-          <WorkerProductivity logs={scopedLogs} workers={scopedWorkers} />
+          {/* WorkerProductivity removido según simplificación de métricas */}
 
           <PhotoGallery
             photos={scopedPhotos}
