@@ -43,6 +43,8 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import ItemScopeSummary from "@/components/common/ItemScopeSummary";
+import VoiceInputButton from "@/components/common/VoiceInputButton";
+import { QUICK_RESTRICTIONS } from "@/constants/predefinedRestrictions";
 
 import SignaturePad from "./SignaturePad";
 import { stampPhotoWatermark } from "@/utils/watermark";
@@ -2443,9 +2445,11 @@ export default function DailyLogForm({
                       <Label className="text-xs font-semibold text-rose-900">
                         Detalle del motivo o restricción *
                       </Label>
-                      <span className="text-[10px] text-muted-foreground">
-                        Explica la causa del paro o restricción
-                      </span>
+                      <VoiceInputButton
+                        value={displayedRestrictionDetail}
+                        onChange={handleRestrictionDetailChange}
+                        title="Dictar motivo de restricción"
+                      />
                     </div>
 
                     {/* Botones de causas rápidas de respaldo contractual */}
@@ -2459,14 +2463,7 @@ export default function DailyLogForm({
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        {[
-                          "Falta de frente civil / losa no entregada",
-                          "Interferencia de otra especialidad / sector bloqueado",
-                          "Sin energía eléctrica de faena o corte de agua",
-                          "Planos no aprobados / pendiente resolución RFI",
-                          "Falta de materiales o quiebre de stock proveedor",
-                          "Clima adverso / lluvia o humedad no permitida",
-                        ].map((cause) => (
+                        {QUICK_RESTRICTIONS.map((cause) => (
                           <button
                             key={cause}
                             type="button"
@@ -2499,9 +2496,16 @@ export default function DailyLogForm({
               </div>
 
               <div>
-                <Label className="text-xs">
-                  Observaciones {isMultiFloor ? `(${activeFloor})` : ""}
-                </Label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <Label className="text-xs">
+                    Observaciones {isMultiFloor ? `(${activeFloor})` : ""}
+                  </Label>
+                  <VoiceInputButton
+                    value={displayedObservations}
+                    onChange={handleObservationsChange}
+                    title="Dictar observaciones"
+                  />
+                </div>
                 <Textarea
                   value={displayedObservations}
                   onChange={(e) => handleObservationsChange(e.target.value)}

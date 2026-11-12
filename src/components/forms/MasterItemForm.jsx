@@ -42,6 +42,8 @@ import {
   normalizeScopeTypeValue,
 } from "@/constants/activityScope";
 import { sortFloors } from "@/utils/floors";
+import VoiceInputButton from "@/components/common/VoiceInputButton";
+import { QUICK_RESTRICTIONS } from "@/constants/predefinedRestrictions";
 
 const ALL_FLOOR_OPTIONS = [
   { label: "Piso 1", value: "Piso 1" },
@@ -1932,15 +1934,58 @@ export default function MasterItemForm({
             </div>
 
             {hasRestriction && (
-              <div className="space-y-1">
-                <Label className="text-xs">Detalle de restricción *</Label>
+              <div className="space-y-2 pt-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-rose-900">
+                    Detalle de restricción *
+                  </Label>
+                  <VoiceInputButton
+                    value={form.restrictions}
+                    onChange={(val) => updateFormField("restrictions", val)}
+                    disabled={Boolean(editItem && editItem.parent_id !== null)}
+                    title="Dictar motivo de restricción"
+                  />
+                </div>
+
+                {/* Botones de causas rápidas de respaldo contractual */}
+                <div className="space-y-1.5 rounded-lg border border-rose-200/60 bg-rose-50/50 p-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-rose-900 flex items-center gap-1">
+                      🛡️ Causas Frecuentes
+                    </span>
+                    <span className="text-[10px] text-rose-600">
+                      Toca para autocompletar
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {QUICK_RESTRICTIONS.map((cause) => (
+                      <button
+                        key={cause}
+                        type="button"
+                        onClick={() => {
+                          const current = form.restrictions || "";
+                          if (!current.trim()) {
+                            updateFormField("restrictions", cause);
+                          } else if (!current.includes(cause)) {
+                            updateFormField("restrictions", `${current.trim()}; ${cause}`);
+                          }
+                        }}
+                        disabled={Boolean(editItem && editItem.parent_id !== null)}
+                        className="inline-flex items-center rounded-md border border-rose-300 bg-white px-2 py-1 text-[11px] font-medium text-rose-800 shadow-2xs hover:bg-rose-100 hover:border-rose-400 transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        + {cause}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <Textarea
                   value={form.restrictions}
                   onChange={(e) =>
                     updateFormField("restrictions", e.target.value)
                   }
                   className="h-16"
-                  placeholder="Escriba los detalles de la restricción..."
+                  placeholder="Escriba o dicte los detalles de la restricción..."
                   disabled={Boolean(editItem && editItem.parent_id !== null)}
                 />
               </div>
@@ -1948,13 +1993,22 @@ export default function MasterItemForm({
           </div>
 
           <div>
-            <Label className="text-xs">Observaciones</Label>
+            <div className="flex items-center justify-between mb-1.5">
+              <Label className="text-xs">Observaciones</Label>
+              <VoiceInputButton
+                value={form.observations}
+                onChange={(val) => updateFormField("observations", val)}
+                disabled={isEditingMultiFloor}
+                title="Dictar observaciones"
+              />
+            </div>
             <Textarea
               value={form.observations}
               onChange={(e) =>
                 updateFormField("observations", e.target.value)
               }
               className="h-16"
+              placeholder="Observaciones de la partida..."
               disabled={isEditingMultiFloor}
             />
           </div>
