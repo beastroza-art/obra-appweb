@@ -10,6 +10,7 @@ import MasterItemForm from '../components/forms/MasterItemForm';
 import DailyLogForm from '../components/forms/DailyLogForm';
 import FloatingReportButton from "../components/common/FloatingReportButton";
 import FilterBar from '../components/dashboard/FilterBar';
+import OperationalStatusBar from '../components/common/OperationalStatusBar';
 import ProjectForm from '../components/forms/ProjectForm';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle } from 'lucide-react';
@@ -29,15 +30,14 @@ export default function MasterPlan() {
         project: '',
         tower: '',
         floor: '',
-        activity: '',
-        release: '',
         search: '',
+        operationalStatus: 'all',
       };
       base.project = selectedProject || '';
       if (saved && saved.project !== base.project) {
         base.tower = '';
         base.floor = '';
-        base.activity = '';
+        base.operationalStatus = 'all';
       }
       return base;
     } catch (error) {
@@ -46,9 +46,8 @@ export default function MasterPlan() {
         project: selectedProject || '',
         tower: '',
         floor: '',
-        activity: '',
-        release: '',
         search: '',
+        operationalStatus: 'all',
       };
     }
   });
@@ -62,7 +61,6 @@ export default function MasterPlan() {
         project: selectedProject,
         tower: '',
         floor: '',
-        activity: '',
       };
     });
   }, [selectedProject]);
@@ -228,23 +226,109 @@ export default function MasterPlan() {
     },
   });
 
-  const filteredItems = filteredMasterItems.filter((item) => {
-    if (filters.project && item.project !== filters.project) return false;
-    if (filters.tower && item.tower !== filters.tower) return false;
-    if (!itemHasFloor(item.floor, filters.floor, item.scope_type)) return false;
-    if (filters.activity && item.activity !== filters.activity) return false;
-    if (filters.release && item.release_status !== filters.release) return false;
+  const todayStr = React.useMemo(() => new Date().toISOString().slice(0, 10), []);
 
-    if (filters.search) {
-      const s = filters.search.toLowerCase();
-      const searchable =
-        `${item.project} ${item.tower} ${item.floor} ${item.activity} ${item.crew_name} ${item.restrictions}`.toLowerCase();
+  const unsignedLogsByItemId = React.useMemo(() => {
+    const set = new Set();
+    if (!Array.isArray(dailyLogs)) return set;
+    dailyLogs.forEach((log) => {
+      const hasSig = log.capataz_signature && String(log.capataz_signature).trim() !== "";
+      if (!hasSig && log.master_item_id) {
+        set.add(Number(log.master_item_id));
+      }
+    });
+    return set;
+  }, [dailyLogs]);
 
-      if (!searchable.includes(s)) return false;
+  // Items filtrados por ubicación, obra y búsqueda (base para contadores de situación)
+  const scopeFilteredItems = React.useMemo(() => {
+    return filteredMasterItems.filter((item) => {
+      if (filters.project && item.project !== filters.project) return false;
+      if (filters.tower && item.tower !== filters.tower) return false;
+      if (!itemHasFloor(item.floor, filters.floor, item.scope_type)) return false;
+
+      if (filters.search) {
+        const s = filters.search.toLowerCase();
+        const searchable =
+          `${item.project} ${item.tower} ${item.floor} ${item.activity} ${item.crew_name} ${item.restrictions}`.toLowerCase();
+
+        if (!searchable.includes(s)) return false;
+      }
+
+      return true;
+    });
+  }, [filteredMasterItems, filters.project, filters.tower, filters.floor, filters.search]);
+
+  // Items finales aplicando el chip de Situación Operativa seleccionado
+  const filteredItems = React.useMemo(() => {
+    if (!filters.operationalStatus || filters.operationalStatus === "all") {
+      return scopeFilteredItems;
     }
 
-    return true;
-  });
+    return scopeFilteredItems.filter((item) => {
+      const planned = Number(item.planned_qty || 0);
+      const executed = Number(item.executed_qty || 0);
+      const pct = planned > 0 ? Math.min(Math.round((executed / planned) * 100), 100) : 0;
+
+      const isCompleted =
+        pct >= 100 ||
+        item.status === "completado" ||
+        item.release_status === "terminado";
+
+      const hasActiveRestriction = Boolean(
+        item.restrictions &&
+        String(item.restrictions).trim() &&
+        !["—", "-", "sin restriccion", "sin restricción", "ninguna", "no"].includes(
+          String(item.restrictions).trim().toLowerCase()
+        )
+      );
+
+      const isBlocked =
+        !isCompleted && (
+          item.status === "bloqueado" ||
+          item.status === "piso bloqueado" ||
+          (hasActiveRestriction && item.status !== "en_ejecucion")
+        );
+
+      const isOverdue =
+        !isCompleted && item.end_date && item.end_date < todayStr;
+
+      const hasUnsigned = unsignedLogsByItemId.has(Number(item.id));
+
+      switch (filters.operationalStatus) {
+        case "completed":
+          return isCompleted;
+        case "overdue":
+          return isOverdue;
+        case "blocked":
+          return isBlocked;
+        case "pending_signature":
+          return hasUnsigned;
+        case "in_progress":
+          return (
+            !isCompleted &&
+            !isOverdue &&
+            !isBlocked &&
+            (pct > 0 ||
+              (item.start_date && item.start_date <= todayStr) ||
+              item.status === "en_ejecucion" ||
+              item.release_status === "liberado")
+          );
+        case "pending":
+          return (
+            !isCompleted &&
+            !isOverdue &&
+            !isBlocked &&
+            pct === 0 &&
+            (!item.start_date || item.start_date > todayStr) &&
+            item.status !== "en_ejecucion" &&
+            item.release_status !== "liberado"
+          );
+        default:
+          return true;
+      }
+    });
+  }, [scopeFilteredItems, filters.operationalStatus, todayStr, unsignedLogsByItemId]);
 
   const filteredItemIds = React.useMemo(() => {
     const ids = new Set(filteredItems.map((item) => Number(item.id)));
@@ -434,6 +518,15 @@ export default function MasterPlan() {
         pdfMasterItems={pdfMasterItems}
         pdfDailyLogs={pdfDailyLogs}
         pdfSitePhotos={pdfSitePhotos}
+      />
+
+      <OperationalStatusBar
+        items={scopeFilteredItems}
+        dailyLogs={dailyLogs}
+        selectedStatus={filters.operationalStatus || "all"}
+        onSelectStatus={(status) =>
+          setFilters((prev) => ({ ...prev, operationalStatus: status }))
+        }
       />
 
       <MasterPlanTable

@@ -402,7 +402,7 @@ function addMasterSheet(workbook, masterItems, logoImageId, exportedAt) {
 
   styleTitle(
     sheet,
-    'Informe de Control de Obras DGC',
+    'Informe de Control de Obras',
     `Exportado: ${exportedAt} | Plan maestro consolidado`,
     'O',
     logoImageId
@@ -885,8 +885,8 @@ export async function exportReportExcel(masterItems, dailyLogs, { emailToUser = 
   const workbook = new ExcelJS.Workbook();
   const exportedAt = format(new Date(), 'dd MMM yyyy HH:mm', { locale: es });
 
-  workbook.creator = 'Control de Obras DGC';
-  workbook.company = 'DGC';
+  workbook.creator = 'ObraControl Pro';
+  workbook.company = 'Control de Obras';
   workbook.subject = 'Informe de control de obras';
   workbook.created = new Date();
   workbook.modified = new Date();

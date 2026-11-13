@@ -237,7 +237,7 @@ function normalizeTowerStr(str) {
 
 function validateProjectTower(projectName, tower, callback) {
   db.get(
-    "SELECT name, tower_count FROM projects WHERE name = ?",
+    "SELECT name, tower_count, departments FROM projects WHERE name = ?",
     [projectName],
     (err, project) => {
       if (err) return callback(err);
@@ -246,8 +246,16 @@ function validateProjectTower(projectName, tower, callback) {
         return callback(null, "La obra seleccionada no existe");
       }
 
+      let customTowers = [];
+      try {
+        const parsed = JSON.parse(project.departments || "{}");
+        if (Array.isArray(parsed.__towers_config__) && parsed.__towers_config__.length > 0) {
+          customTowers = parsed.__towers_config__.map((t) => t.name).filter(Boolean);
+        }
+      } catch (e) {}
+
       const validTowers = [
-        ...getTowerOptions(project.tower_count),
+        ...(customTowers.length > 0 ? customTowers : getTowerOptions(project.tower_count)),
         "Exteriores",
         "Subterráneo",
         "Áreas Comunes",
@@ -520,9 +528,10 @@ router.post("/", (req, res) => {
         return sum + q;
       }, 0);
 
+      const resolvedTower = scopeFields.tower || tower || "";
       const parentValues = [
         project || "",
-        tower || "",
+        resolvedTower,
         floor || "",
         scope_type,
         departments || "",
@@ -585,7 +594,7 @@ router.post("/", (req, res) => {
 
           const childValues = [
             project || "",
-            tower || "",
+            resolvedTower,
             floorVal,
             scope_type,
             departments || "",
@@ -651,10 +660,12 @@ router.post("/", (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
+    const resolvedTower = scopeFields.tower || tower || "";
+
     const buildItem = (id, floorValue) => ({
       id,
       project: project || "",
-      tower: tower || "",
+      tower: resolvedTower,
       floor: floorValue,
       scope_type: scope_type || SCOPE_TYPES.PISO,
       departments: departments || "",
@@ -676,7 +687,7 @@ router.post("/", (req, res) => {
 
     const buildValues = (floorValue) => [
       project || "",
-      tower || "",
+      resolvedTower,
       floorValue,
       scope_type || SCOPE_TYPES.PISO,
       departments || "",
@@ -815,9 +826,10 @@ router.put("/:id", (req, res) => {
         WHERE id = ?
       `;
 
+        const resolvedTower = scopeFields.tower || tower || "";
         const values = [
           project || "",
-          tower || "",
+          resolvedTower,
           floor || "",
           scope_type || SCOPE_TYPES.PISO,
           departments || "",
@@ -854,7 +866,7 @@ router.put("/:id", (req, res) => {
                 WHERE parent_id = ?
               `;
               db.run(propagateSql, [
-                project || "", tower || "", activity || "", start_date || "", end_date || "",
+                project || "", resolvedTower, activity || "", start_date || "", end_date || "",
                 String(unit || "und").trim().toLowerCase(), crew_name || "", toNumber(crew_size),
                 stringifyArray(crew_members), restrictions || "", observations || "",
                 status || "pendiente", release_status || "no_liberado",

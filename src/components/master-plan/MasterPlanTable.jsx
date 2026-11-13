@@ -480,8 +480,8 @@ export default function MasterPlanTable({
                 <TableHead className="w-8 text-xs" />
                 <TableHead className="text-xs">Proyecto</TableHead>
                 <TableHead className="text-xs hidden xl:table-cell">Supervisor</TableHead>
-                <TableHead className="text-xs hidden lg:table-cell">Torre</TableHead>
-                <TableHead className="text-xs">Piso</TableHead>
+                <TableHead className="text-xs hidden lg:table-cell">Torre / Sector</TableHead>
+                <TableHead className="text-xs">Piso / Nivel</TableHead>
                 <TableHead className="text-xs text-center min-w-[70px]">Atrasos</TableHead>
                 <TableHead className="text-xs">Actividad</TableHead>
                 <TableHead className="min-w-[92px] whitespace-nowrap text-xs hidden lg:table-cell">
@@ -564,7 +564,9 @@ export default function MasterPlanTable({
                         {projectSupervisorByName[row.project] || "—"}
                       </TableCell>
 
-                      <TableCell className="hidden lg:table-cell">{row.tower || "—"}</TableCell>
+                      <TableCell className="hidden lg:table-cell font-medium">
+                        {row.tower || "—"}
+                      </TableCell>
                        <TableCell className="min-w-[160px] max-w-[240px]">
                         <FloorsDisplay floor={row.displayFloor} selectedFloor={selectedFloor} />
                       </TableCell>

@@ -99,22 +99,42 @@ export default function Login() {
 
       <div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
         <section className="relative hidden overflow-hidden bg-primary text-primary-foreground lg:block">
-          <img
-            src="https://media.base44.com/images/public/69c135c57c9886fec79cebc5/6324de60d_logoclientes-8.png"
-            alt="DGC"
-            className="absolute left-10 top-8 h-14 object-contain"
-          />
+          {/* Logo ObraControl Pro */}
+          <div className="absolute left-10 top-8 flex items-center gap-3">
+            <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-blue-400 via-indigo-500 to-sky-400 p-0.5 shadow-lg flex items-center justify-center">
+              <div className="h-full w-full bg-slate-950/40 rounded-[14px] flex items-center justify-center backdrop-blur-xs">
+                <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                  <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                  <line x1="12" y1="22.08" x2="12" y2="12" />
+                </svg>
+              </div>
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xl font-extrabold tracking-tight text-white">
+                  Obra<span className="text-sky-300">Control</span>
+                </span>
+                <span className="text-[10px] font-black uppercase tracking-wider bg-white/20 text-sky-200 px-1.5 py-0.5 rounded">
+                  PRO
+                </span>
+              </div>
+              <p className="text-xs text-primary-foreground/75 font-medium -mt-0.5">
+                Plataforma de Control Operacional de Obras
+              </p>
+            </div>
+          </div>
           <div className="absolute inset-x-0 bottom-0 h-2 bg-accent" />
           <div className="flex h-full flex-col justify-end px-10 pb-14">
             <div className="max-w-xl">
               <p className="mb-3 text-sm font-semibold uppercase tracking-[0.14em] text-accent">
-                Control de Obras DGC
+                Plataforma de Gestión y Avance
               </p>
               <h1 className="text-4xl font-semibold leading-tight">
                 Acceso seguro para controlar avance, personal y restricciones.
               </h1>
               <p className="mt-4 max-w-lg text-sm leading-6 text-primary-foreground/70">
-                Ingresa con tu correo y contraseña para acceder al sistema.
+                Ingresa con tu correo o usuario y contraseña para acceder al sistema.
               </p>
             </div>
           </div>
@@ -123,14 +143,23 @@ export default function Login() {
         <section className="flex items-center justify-center px-4 py-8 sm:px-6">
           <div className="w-full max-w-md">
             <div className="mb-8 flex items-center gap-3 lg:hidden">
-              <img
-                src="https://media.base44.com/images/public/69c135c57c9886fec79cebc5/6324de60d_logoclientes-8.png"
-                alt="DGC"
-                className="h-12 object-contain"
-              />
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-600 to-sky-400 p-0.5 shadow-md flex items-center justify-center shrink-0">
+                <div className="h-full w-full bg-slate-950/40 rounded-[10px] flex items-center justify-center">
+                  <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                    <line x1="12" y1="22.08" x2="12" y2="12" />
+                  </svg>
+                </div>
+              </div>
               <div>
-                <h1 className="text-base font-semibold">Control de Obras</h1>
-                <p className="text-xs text-muted-foreground">Obra Eléctrica</p>
+                <div className="flex items-center gap-1.5">
+                  <h1 className="text-base font-extrabold tracking-tight text-foreground">
+                    Obra<span className="text-blue-600">Control</span>
+                  </h1>
+                  <span className="text-[9px] font-black uppercase tracking-wider bg-primary/10 text-primary px-1.5 py-0.2 rounded">PRO</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Control y Avance de Obras</p>
               </div>
             </div>
 
@@ -152,7 +181,7 @@ export default function Login() {
                       type="text"
                       autoComplete="username"
                       className="h-11 pl-9"
-                      placeholder="bap@dgcelectricidad.cl o benjamin"
+                      placeholder="usuario o correo corporativo"
                       value={formData.email}
                       onChange={(event) =>
                         setFormData((current) => ({

@@ -40,7 +40,7 @@ function addHeader(doc, pageNum, totalPages, nowStr, onlineCount, totalCount) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(255, 255, 255);
-  doc.text('DGC MONTAJES  ·  REPORTE DE USUARIOS Y CONEXIONES EN VIVO', M, 9);
+  doc.text('CONTROL DE OBRAS  ·  REPORTE DE USUARIOS Y CONEXIONES EN VIVO', M, 9);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
@@ -105,7 +105,7 @@ function addFooter(doc, pageNum, totalPages) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.setTextColor(120, 130, 150);
-  doc.text('DGC Montajes · Sistema de Control de Avance y Operaciones', M, PAGE_H - 6);
+  doc.text('Control de Obras · Sistema de Control de Avance y Operaciones', M, PAGE_H - 6);
   doc.text(`Página ${pageNum} de ${totalPages}`, PAGE_W - M, PAGE_H - 6, { align: 'right' });
 }
 

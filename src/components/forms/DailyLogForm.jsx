@@ -1178,7 +1178,9 @@ export default function DailyLogForm({
       const currentRestrictionDetail = isMultiFloor ? (currentFloorData?.restriction_detail || "") : (form.restriction_detail || "");
       const isBlocked = currentIsZero || currentHasRestriction;
 
-      const currentTower = resolvedMasterItem?.tower ? `${resolvedMasterItem.tower} - ` : "";
+      const rawTow = resolvedMasterItem?.tower;
+      const normTow = rawTow === "Subterráneo" ? "" : rawTow;
+      const currentTower = normTow ? `${normTow} - ` : "";
       const currentSector = isMultiFloor && activeFloor ? activeFloor : (resolvedMasterItem?.floor || "Sector General");
       const currentDptos = resolvedMasterItem?.departments ? ` (Dptos: ${resolvedMasterItem.departments})` : "";
       const currentLoc = `${currentTower}${currentSector}${currentDptos}`;

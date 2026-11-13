@@ -72,11 +72,11 @@ function generateDepartmentsForFloor(floorName, count = 8) {
   });
 }
 
-// Generar pisos: no más de 15 pisos
+// Generar pisos: configurable hasta 40 pisos
 function generateTowerFloorList(tower) {
   const list = [];
-  const start = Math.max(1, Math.min(15, Number(tower.startFloor) || 1));
-  const end = Math.max(start, Math.min(15, Number(tower.endFloor) || 1));
+  const start = Math.max(1, Math.min(40, Number(tower.startFloor) || 1));
+  const end = Math.max(start, Math.min(40, Number(tower.endFloor) || 1));
 
   for (let i = start; i <= end; i++) {
     list.push(`Piso ${i}`);
@@ -276,11 +276,11 @@ export default function ProjectForm({
       setVerticalCD(Number(editProject.vertical_cd_count || 0) > 0);
 
       if (parsedDeps.__towers_config__ && Array.isArray(parsedDeps.__towers_config__)) {
-        // Asegurar que pisos no excedan 15
+        // Sanitizar rango de pisos (hasta 40 pisos)
         const sanitized = parsedDeps.__towers_config__.map((t) => ({
           ...t,
-          startFloor: Math.max(1, Math.min(15, Number(t.startFloor) || 1)),
-          endFloor: Math.max(1, Math.min(15, Number(t.endFloor) || 15)),
+          startFloor: Math.max(1, Math.min(40, Number(t.startFloor) || 1)),
+          endFloor: Math.max(1, Math.min(40, Number(t.endFloor) || 15)),
           defaultDepsCount: Math.max(1, Math.min(30, Number(t.defaultDepsCount) || 8)),
         }));
         setTowers(sanitized);
@@ -299,7 +299,7 @@ export default function ProjectForm({
             id: `tower-${i + 1}`,
             name: count > 1 ? `Torre ${TOWER_LETTERS[i] || i + 1}` : "Torre 1",
             startFloor: 1,
-            endFloor: Math.min(15, maxFloorNum || 15), // Máximo 15 pisos
+            endFloor: Math.min(40, maxFloorNum || 15),
             hasCubierta: rawFloors.some((f) => /cubierta|azotea/i.test(f)),
             defaultDepsCount: 8,
             departments: {},
@@ -383,16 +383,16 @@ export default function ProjectForm({
 
   const activeTower = towers[activeTowerIndex] || towers[0];
 
-  // Actualizar torre activa y sincronizar sus pisos (con límite de 15 pisos)
+  // Actualizar torre activa y sincronizar sus pisos (con límite de 40 pisos)
   const updateActiveTower = (field, value) => {
     setTowers((prev) => {
       const next = [...prev];
       if (next[activeTowerIndex]) {
         let parsedVal = value;
         if (field === "startFloor") {
-          parsedVal = Math.max(1, Math.min(15, parseInt(value, 10) || 1));
+          parsedVal = Math.max(1, Math.min(40, parseInt(value, 10) || 1));
         } else if (field === "endFloor") {
-          parsedVal = Math.max(1, Math.min(15, parseInt(value, 10) || 1));
+          parsedVal = Math.max(1, Math.min(40, parseInt(value, 10) || 1));
         }
 
         const updated = {
@@ -1178,13 +1178,13 @@ export default function ProjectForm({
                         />
                       </div>
 
-                      {/* Rango de pisos: hasta 15 pisos máximo */}
+                      {/* Rango de pisos: hasta 40 pisos */}
                       <div className="flex items-center gap-1.5">
                         <Label className="text-xs font-bold text-slate-700">Pisos:</Label>
                         <Input
                           type="number"
                           min="1"
-                          max="15"
+                          max="40"
                           value={activeTower.startFloor}
                           onChange={(e) => updateActiveTower("startFloor", e.target.value)}
                           className="h-8.5 w-13 text-xs bg-white text-center font-bold rounded-lg border-slate-200"
@@ -1193,12 +1193,12 @@ export default function ProjectForm({
                         <Input
                           type="number"
                           min="1"
-                          max="15"
+                          max="40"
                           value={activeTower.endFloor}
                           onChange={(e) => updateActiveTower("endFloor", e.target.value)}
                           className="h-8.5 w-13 text-xs bg-white text-center font-bold rounded-lg border-slate-200"
                         />
-                        <span className="text-[10.5px] text-slate-400 font-medium">(máx 15)</span>
+                        <span className="text-[10.5px] text-slate-400 font-medium">(máx 40)</span>
                       </div>
 
                       {/* Deptos por piso: hasta 30 */}

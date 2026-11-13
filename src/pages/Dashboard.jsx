@@ -69,15 +69,12 @@ export default function Dashboard() {
         project: "",
         tower: "",
         floor: "",
-        activity: "",
-        release: "",
         search: "",
       };
       base.project = selectedProject || "";
       if (saved && saved.project !== base.project) {
         base.tower = "";
         base.floor = "";
-        base.activity = "";
       }
       return base;
     } catch (error) {
@@ -86,8 +83,6 @@ export default function Dashboard() {
         project: selectedProject || "",
         tower: "",
         floor: "",
-        activity: "",
-        release: "",
         search: "",
       };
     }
@@ -102,7 +97,6 @@ export default function Dashboard() {
         project: selectedProject,
         tower: "",
         floor: "",
-        activity: "",
       };
     });
   }, [selectedProject]);
@@ -295,9 +289,6 @@ export default function Dashboard() {
     if (filters.project && item.project !== filters.project) return false;
     if (filters.tower && item.tower !== filters.tower) return false;
     if (!itemHasFloor(item.floor, filters.floor, item.scope_type)) return false;
-    if (filters.activity && item.activity !== filters.activity) return false;
-    if (filters.release && item.release_status !== filters.release)
-      return false;
 
     if (filters.search) {
       const search = filters.search.toLowerCase();

@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Box,
   ListChecks,
+  CalendarRange,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -31,6 +32,7 @@ export default function AppLayout() {
       ? [{ path: "/vista-3d", label: "Vista 3D", icon: Box }]
       : []),
     { path: "/master-plan", label: "Plan Maestro", icon: ClipboardList },
+    { path: "/programa", label: "Programa", icon: CalendarRange },
     { path: "/restrictions", label: "Restricciones", icon: AlertTriangle },
     /* Se oculta productividad según simplificación solicitada */
     // { path: "/analytics", label: "Productividad", icon: TrendingUp },
@@ -63,19 +65,31 @@ export default function AppLayout() {
                 <Menu className="w-5 h-5" />
               )}
             </Button>
-            <img
-              src="https://media.base44.com/images/public/69c135c57c9886fec79cebc5/6324de60d_logoclientes-8.png"
-              alt="DGC"
-              className="h-10 object-contain"
-            />
+            {/* Logotipo e Identidad Neutral para Demostración */}
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-600 to-sky-400 p-0.5 shadow-md flex items-center justify-center shrink-0">
+                <div className="h-full w-full bg-slate-950/30 rounded-[10px] flex items-center justify-center backdrop-blur-xs">
+                  <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                    <line x1="12" y1="22.08" x2="12" y2="12" />
+                  </svg>
+                </div>
+              </div>
 
-            <div className="hidden sm:block">
-              <h1 className="text-sm font-semibold leading-tight">
-                Control de Actividades y Avance
-              </h1>
-              <p className="text-xs text-primary-foreground/60">
-                Obra Eléctrica
-              </p>
+              <div className="hidden sm:block">
+                <div className="flex items-center gap-1.5">
+                  <h1 className="text-sm font-extrabold tracking-tight text-white leading-none">
+                    Obra<span className="text-sky-300 font-bold">Control</span>
+                  </h1>
+                  <span className="text-[9px] font-black uppercase tracking-wider bg-white/15 text-sky-200 px-1.5 py-0.2 rounded">
+                    PRO
+                  </span>
+                </div>
+                <p className="text-[11px] font-medium text-primary-foreground/75 mt-0.5 leading-none">
+                  Gestión y Control de Obras
+                </p>
+              </div>
             </div>
           </div>
 
@@ -83,7 +97,7 @@ export default function AppLayout() {
             <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/10">
               <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
               <span className="text-xs font-medium">
-                {user?.full_name || "Supervisor"}
+                {user?.full_name || "Supervisor de Obra"}
               </span>
             </div>
             <Button

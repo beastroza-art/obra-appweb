@@ -398,7 +398,7 @@ export default function ItemDetail() {
         user?.full_name || user?.email || "",
         {
           emailToUser: false,
-          emailSubject: `Informe PDF Detalle Item - ${item.activity || item.project || "Control de Obras DGC"}`,
+          emailSubject: `Informe PDF Detalle Item - ${item.activity || item.project || "Control de Obras"}`,
         },
       );
       // alert("PDF descargado y enviado al correo del usuario logeado.");

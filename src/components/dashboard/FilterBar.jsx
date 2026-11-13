@@ -56,7 +56,7 @@ function getTowersForProject(proj) {
     0,
     Math.min(Math.max(count, 1), TOWER_LETTERS.length),
   ).map((l) => `Torre ${l}`);
-  return [...list, "Exteriores"];
+  return [...list, "Subterráneo", "Exteriores", "Áreas Comunes"];
 }
 const ACTIVITIES = RAW_DEFAULT_ACTIVITIES;
 
@@ -157,7 +157,7 @@ export default function FilterBar({
   const towerOptions = uniqueList(
     selectedProj
       ? getTowersForProject(selectedProj)
-      : [...TOWERS, ...sourceItems.map((item) => item.tower)],
+      : [...TOWERS, "Subterráneo", "Exteriores", "Áreas Comunes", ...sourceItems.map((item) => item.tower)],
   );
 
   const floorOptions = React.useMemo(() => {
@@ -316,7 +316,7 @@ export default function FilterBar({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <FilterPill
           label="Obra"
           value={filters.project}
@@ -325,7 +325,7 @@ export default function FilterBar({
         />
 
         <FilterPill
-          label="Torre"
+          label="Torre / Sector"
           value={filters.tower}
           options={towerOptions}
           onChange={(value) => updateFilter("tower", value)}
@@ -338,26 +338,12 @@ export default function FilterBar({
           options={floorOptions}
           onChange={(value) => updateFilter("floor", value)}
         />
-
-        <FilterPill
-          label="Actividad"
-          value={filters.activity}
-          options={activityOptions}
-          onChange={(value) => updateFilter("activity", value)}
-        />
-
-        <FilterPill
-          label="Liberacion"
-          value={filters.release}
-          options={RELEASE_STATUSES}
-          onChange={(value) => updateFilter("release", value)}
-        />
       </div>
 
       <div className="relative w-full">
         <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Buscar sector, responsable, restriccion..."
+          placeholder="Buscar actividad, sector, responsable o restricción..."
           className="h-9 pl-8 text-xs"
           value={filters.search || ""}
           onChange={updateSearch}

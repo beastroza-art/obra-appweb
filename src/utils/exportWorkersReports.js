@@ -42,7 +42,7 @@ export function exportWorkersWithoutActivityPDF({ workers = [], projectName = 'T
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(255, 255, 255);
-    doc.text('DGC MONTAJES  ·  PERSONAL SIN ACTIVIDAD ASIGNADA', M, 9);
+    doc.text('CONTROL DE OBRAS  ·  PERSONAL SIN ACTIVIDAD ASIGNADA', M, 9);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
@@ -94,7 +94,7 @@ export function exportWorkersWithoutActivityPDF({ workers = [], projectName = 'T
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.setTextColor(120, 130, 150);
-    doc.text('DGC Montajes · Control de Personal y Recursos en Obra', M, PAGE_H - 6);
+    doc.text('Control de Obras · Control de Personal y Recursos en Obra', M, PAGE_H - 6);
     doc.text(`Página ${pageNum} de ${totalPages}`, PAGE_W - M, PAGE_H - 6, { align: 'right' });
   };
 
@@ -184,7 +184,7 @@ export function exportWorkersWithoutActivityPDF({ workers = [], projectName = 'T
 
 export async function exportWorkersWithoutActivityExcel({ workers = [], projectName = 'Todas las obras' }) {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = 'DGC Montajes';
+  workbook.creator = 'Control de Obras';
   workbook.created = new Date();
 
   const sheet = workbook.addWorksheet('Personal Sin Actividad');
@@ -196,7 +196,7 @@ export async function exportWorkersWithoutActivityExcel({ workers = [], projectN
   // Title Block
   sheet.mergeCells('A1:E1');
   const titleCell = sheet.getCell('A1');
-  titleCell.value = 'DGC MONTAJES · PERSONAL SIN ACTIVIDAD ASIGNADA (DISPONIBLE)';
+  titleCell.value = 'CONTROL DE OBRAS · PERSONAL SIN ACTIVIDAD ASIGNADA (DISPONIBLE)';
   titleCell.font = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
   titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0D1B40' } };
   titleCell.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };

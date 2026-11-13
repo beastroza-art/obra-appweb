@@ -8,6 +8,7 @@ import AppLayout from './components/layout/AppLayout';
 import Dashboard from './pages/Dashboard';
 import Vista3D from './pages/Vista3D';
 import MasterPlan from './pages/MasterPlan';
+import Program from './pages/Program';
 import ItemDetail from './pages/ItemDetail';
 import Workers from './pages/Workers';
 import Users from './pages/Users';
@@ -43,6 +44,7 @@ const AuthenticatedApp = () => {
         <Route path="/" element={<Dashboard />} />
         <Route path="/vista-3d" element={<Vista3D />} />
         <Route path="/master-plan" element={<MasterPlan />} />
+        <Route path="/programa" element={<Program />} />
         <Route path="/item/:id" element={<ItemDetail />} />
         <Route path="/workers" element={<Workers />} />
         <Route path="/users" element={<Users />} />

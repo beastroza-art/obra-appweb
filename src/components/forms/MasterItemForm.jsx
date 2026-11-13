@@ -284,6 +284,8 @@ export default function MasterItemForm({
   const [towerScopeMode, setTowerScopeMode] = useState("departamento"); // 'departamento' | 'pasillo'
   const [verticalSubtype, setVerticalSubtype] = useState(SCOPE_TYPES.VERTICAL_EL);
   const [floorSelectionMode, setFloorSelectionMode] = useState("single");
+  const [rangeStart, setRangeStart] = useState("");
+  const [rangeEnd, setRangeEnd] = useState("");
 
   const [selectedSubterraneo, setSelectedSubterraneo] = useState("");
   const [customSubterraneo, setCustomSubterraneo] = useState("");
@@ -410,14 +412,29 @@ export default function MasterItemForm({
   const handleZoneChange = (newZone) => {
     if (editItem) return;
     setZoneType(newZone);
-    if (newZone === "subterraneo" && !selectedSubterraneo && projectSubterraneos.length > 0) {
-      setSelectedSubterraneo(projectSubterraneos[0]);
+    if (newZone === "subterraneo") {
+      if (!selectedSubterraneo || (projectSubterraneos.length > 0 && !projectSubterraneos.includes(selectedSubterraneo))) {
+        if (projectSubterraneos.length > 0) {
+          setSelectedSubterraneo(projectSubterraneos[0]);
+          setIsCustomSubterraneo(false);
+        }
+      }
     }
-    if (newZone === "exterior" && !selectedExterior && projectExteriores.length > 0) {
-      setSelectedExterior(projectExteriores[0]);
+    if (newZone === "exterior") {
+      if (!selectedExterior || (projectExteriores.length > 0 && !projectExteriores.includes(selectedExterior))) {
+        if (projectExteriores.length > 0) {
+          setSelectedExterior(projectExteriores[0]);
+          setIsCustomExterior(false);
+        }
+      }
     }
-    if (newZone === "comun" && !selectedAreaComun && projectAreasComunes.length > 0) {
-      setSelectedAreaComun(projectAreasComunes[0]);
+    if (newZone === "comun") {
+      if (!selectedAreaComun || (projectAreasComunes.length > 0 && !projectAreasComunes.includes(selectedAreaComun))) {
+        if (projectAreasComunes.length > 0) {
+          setSelectedAreaComun(projectAreasComunes[0]);
+          setIsCustomAreaComun(false);
+        }
+      }
     }
     if (newZone === "torre" && !form.tower && towerOnlyOptions.length > 0) {
       updateFormField("tower", towerOnlyOptions[0]);
@@ -530,13 +547,16 @@ export default function MasterItemForm({
         setTowerScopeMode("departamento");
         setVerticalSubtype(SCOPE_TYPES.VERTICAL_EL);
         setFloorSelectionMode("single");
-        setSelectedSubterraneo("");
+        const initialSubs = safeParseJson(initialProjectObj?.subterraneos, []);
+        setSelectedSubterraneo(initialSubs.length > 0 ? initialSubs[0] : (projectSubterraneos[0] || ""));
         setCustomSubterraneo("");
         setIsCustomSubterraneo(false);
-        setSelectedExterior("");
+        const initialExts = safeParseJson(initialProjectObj?.exteriores, []);
+        setSelectedExterior(initialExts.length > 0 ? initialExts[0] : (projectExteriores[0] || ""));
         setCustomExterior("");
         setIsCustomExterior(false);
-        setSelectedAreaComun("");
+        const initialComs = safeParseJson(initialProjectObj?.areas_comunes, []);
+        setSelectedAreaComun(initialComs.length > 0 ? initialComs[0] : (projectAreasComunes[0] || ""));
         setCustomAreaComun("");
         setIsCustomAreaComun(false);
       }
@@ -694,14 +714,20 @@ export default function MasterItemForm({
     if (nextSubs.length > 0) {
       setSelectedSubterraneo(nextSubs[0]);
       setIsCustomSubterraneo(false);
+    } else {
+      setSelectedSubterraneo("");
     }
     if (nextExts.length > 0) {
       setSelectedExterior(nextExts[0]);
       setIsCustomExterior(false);
+    } else {
+      setSelectedExterior("");
     }
     if (nextComs.length > 0) {
       setSelectedAreaComun(nextComs[0]);
       setIsCustomAreaComun(false);
+    } else {
+      setSelectedAreaComun("");
     }
 
     if (error) setError("");
@@ -797,21 +823,31 @@ export default function MasterItemForm({
       return "Debe ingresar la fecha de término.";
     }
 
-    const filledMembers = crewMembers.filter((member) => member.name.trim() || member.role.trim());
+    const validMembers = crewMembers.filter((member) => member.name.trim() && member.role.trim());
+
+    if (validMembers.length === 0) {
+      return "Debe ingresar al menos un integrante en la cuadrilla con nombre y cargo.";
+    }
+
+    const incompleteMembers = crewMembers.filter(
+      (member) => (member.name.trim() && !member.role.trim()) || (!member.name.trim() && member.role.trim())
+    );
+
+    if (incompleteMembers.length > 0) {
+      return "Cada integrante de la cuadrilla debe tener nombre y cargo.";
+    }
 
     if (hasDuplicateMembers) {
       return "No se puede repetir el mismo integrante dentro de la cuadrilla.";
-    }
-
-    if (filledMembers.some((member) => !member.name.trim() || !member.role.trim())) {
-      return "Cada integrante de la cuadrilla debe tener nombre y cargo.";
     }
 
     if (hasRestriction && !form.restrictions?.trim()) {
       return "Debe ingresar el detalle de la restricción.";
     }
 
-    /* observations optional */
+    if (!form.observations || !form.observations.trim()) {
+      return "Debe ingresar las observaciones del ítem.";
+    }
 
     return "";
   };
@@ -851,19 +887,19 @@ export default function MasterItemForm({
       }
     } else if (zoneType === "subterraneo") {
       finalTower = "Subterráneo";
-      finalFloor = (isCustomSubterraneo ? customSubterraneo.trim() : selectedSubterraneo) || "Subterráneo 1";
+      finalFloor = (isCustomSubterraneo ? customSubterraneo.trim() : selectedSubterraneo) || (projectSubterraneos[0] || "Subterráneo 1");
       finalScopeType = "piso";
       finalZoneType = "subterraneo";
       finalDepartments = "";
     } else if (zoneType === "exterior") {
       finalTower = "Exteriores";
-      finalFloor = (isCustomExterior ? customExterior.trim() : selectedExterior) || "Exterior";
+      finalFloor = (isCustomExterior ? customExterior.trim() : selectedExterior) || (projectExteriores[0] || "Exterior");
       finalScopeType = "piso";
       finalZoneType = "exterior";
       finalDepartments = "";
     } else if (zoneType === "comun") {
       finalTower = "Áreas Comunes";
-      finalFloor = (isCustomAreaComun ? customAreaComun.trim() : selectedAreaComun) || "Áreas Comunes";
+      finalFloor = (isCustomAreaComun ? customAreaComun.trim() : selectedAreaComun) || (projectAreasComunes[0] || "Áreas Comunes");
       finalScopeType = "espacios_comunes";
       finalZoneType = "comun";
       finalDepartments = "";
@@ -888,7 +924,7 @@ export default function MasterItemForm({
       unit: "%",
       crew_name: form.crew_name?.trim() || "Equipo General",
       restrictions: hasRestriction ? form.restrictions.trim() : "",
-      observations: form.observations?.trim() || "Sin observaciones",
+      observations: form.observations?.trim() || "",
       crew_size: validMembers.length,
       crew_members: JSON.stringify(validMembers),
     };
@@ -1348,6 +1384,70 @@ export default function MasterItemForm({
                       </button>
                     </div>
                   </div>
+
+                  {floorSelectionMode === "multiple" && !editItem && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-100/70 rounded-lg text-xs">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-semibold text-slate-600">Rango:</span>
+                        <input
+                          type="number"
+                          placeholder="Desde"
+                          min="1"
+                          max="40"
+                          value={rangeStart}
+                          onChange={(e) => setRangeStart(e.target.value)}
+                          className="h-6.5 w-14 text-center rounded border border-slate-300 bg-white text-[11px]"
+                        />
+                        <span className="text-slate-400 font-bold">al</span>
+                        <input
+                          type="number"
+                          placeholder="Hasta"
+                          min="1"
+                          max="40"
+                          value={rangeEnd}
+                          onChange={(e) => setRangeEnd(e.target.value)}
+                          className="h-6.5 w-14 text-center rounded border border-slate-300 bg-white text-[11px]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const startNum = parseInt(rangeStart, 10);
+                            const endNum = parseInt(rangeEnd, 10);
+                            if (isNaN(startNum) || isNaN(endNum)) return;
+                            const min = Math.min(startNum, endNum);
+                            const max = Math.max(startNum, endNum);
+                            const selected = projectTowerFloors.filter((f) => {
+                              const match = f.match(/\d+/);
+                              if (!match) return false;
+                              const num = parseInt(match[0], 10);
+                              return num >= min && num <= max;
+                            });
+                            updateFormField("floors", Array.from(new Set([...form.floors, ...selected])));
+                          }}
+                          className="h-6.5 px-2 text-[10px] font-bold rounded bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
+                        >
+                          Aplicar
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => updateFormField("floors", [...projectTowerFloors])}
+                          className="text-primary hover:underline font-semibold cursor-pointer"
+                        >
+                          Todos ({projectTowerFloors.length})
+                        </button>
+                        <span className="text-slate-300">|</span>
+                        <button
+                          type="button"
+                          onClick={() => updateFormField("floors", [])}
+                          className="text-muted-foreground hover:underline font-semibold cursor-pointer"
+                        >
+                          Limpiar
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="border rounded-xl p-2.5 h-48 overflow-y-auto space-y-1 bg-white scrollbar-thin">
                     {projectTowerFloors.map((floor) => {
@@ -1816,12 +1916,16 @@ export default function MasterItemForm({
 
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <Label className="text-xs">
-                Integrantes Asignados (Personal)
-                {validMemberCount > 0 && (
-                  <span className="ml-1.5 text-muted-foreground">
+              <Label className="text-xs font-semibold">
+                Integrantes Asignados (Personal) *
+                {validMemberCount > 0 ? (
+                  <span className="ml-1.5 text-muted-foreground font-normal">
                     ({validMemberCount} persona
                     {validMemberCount !== 1 ? "s" : ""})
+                  </span>
+                ) : (
+                  <span className="ml-1.5 text-[11px] text-amber-600 font-normal">
+                    (Mínimo 1 integrante con nombre y cargo)
                   </span>
                 )}
               </Label>
@@ -1928,8 +2032,9 @@ export default function MasterItemForm({
                 }}
                 disabled={Boolean(editItem && editItem.parent_id !== null)}
               />
-              <Label htmlFor="has-restriction-switch" className="text-xs cursor-pointer">
-                ¿Tiene restricción?
+              <Label htmlFor="has-restriction-switch" className="text-xs cursor-pointer flex items-center gap-1.5">
+                <span>¿Tiene restricción?</span>
+                <span className="text-[11px] text-muted-foreground font-normal">(Opcional)</span>
               </Label>
             </div>
 
@@ -1994,7 +2099,7 @@ export default function MasterItemForm({
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <Label className="text-xs">Observaciones</Label>
+              <Label className="text-xs font-semibold">Observaciones *</Label>
               <VoiceInputButton
                 value={form.observations}
                 onChange={(val) => updateFormField("observations", val)}
@@ -2008,7 +2113,7 @@ export default function MasterItemForm({
                 updateFormField("observations", e.target.value)
               }
               className="h-16"
-              placeholder="Observaciones de la partida..."
+              placeholder="Observaciones de la partida (obligatorio)..."
               disabled={isEditingMultiFloor}
             />
           </div>
@@ -2019,7 +2124,7 @@ export default function MasterItemForm({
             Cancelar
           </Button>
 
-          <Button onClick={handleSave} disabled={isFormInvalid}>
+          <Button onClick={handleSave} disabled={saving}>
             {saving ? "Guardando..." : editItem ? "Actualizar" : "Crear Ítem"}
           </Button>
 

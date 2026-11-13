@@ -385,7 +385,7 @@ async function loadLogoDataUrl() {
 
 function drawCoverPage(doc, { today, todayShort, logoData, masterItems, dailyLogs, byProject, globalPct, lastLogDate, userName = '', showIncludedProjects = true }) {
   const projectNames = Object.keys(byProject);
-  const docCode = `DGC-INF-${todayShort.replace(/-/g, '')}`;
+  const docCode = `INF-${todayShort.replace(/-/g, '')}`;
   const generatedAt = format(new Date(), 'dd/MM/yyyy HH:mm');
   doc.setFillColor(13, 27, 64); doc.rect(0, 0, PAGE_W, PAGE_H, 'F');
   doc.setFillColor(234, 179, 8); doc.rect(0, 0, PAGE_W, 5, 'F');
@@ -403,7 +403,7 @@ function drawCoverPage(doc, { today, todayShort, logoData, masterItems, dailyLog
   doc.text('INFORME DE', PAGE_W / 2, titleY, { align: 'center' });
   doc.text('CONTROL DE OBRA', PAGE_W / 2, titleY + 13, { align: 'center' });
   doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(186, 200, 228);
-  doc.text('Gestión de avance · Obras eléctricas · Control de Obras DGC', PAGE_W / 2, titleY + 24, { align: 'center' });
+  doc.text('Gestión Operacional y Control de Avance de Obra', PAGE_W / 2, titleY + 24, { align: 'center' });
   const accentY = titleY + 34;
   doc.setFillColor(234, 179, 8); doc.rect(PAGE_W / 2 - 42, accentY, 84, 1.4, 'F');
   const cardX = M + 10; const cardW = CW - 20; const cardY = accentY + 14; const cardH = 88;
@@ -452,7 +452,7 @@ function drawCoverPage(doc, { today, todayShort, logoData, masterItems, dailyLog
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(234, 179, 8);
   doc.text('DOCUMENTO CONFIDENCIAL — USO INTERNO', PAGE_W / 2, PAGE_H - 38, { align: 'center' });
   doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(175, 188, 215);
-  doc.text(`Generado automáticamente · Control de Obras DGC · ${generatedAt}`, PAGE_W / 2, PAGE_H - 30, { align: 'center' });
+  doc.text(`Generado automáticamente · ObraControl Pro · ${generatedAt}`, PAGE_W / 2, PAGE_H - 30, { align: 'center' });
   doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(140, 155, 185);
   doc.text('La reproducción parcial o total requiere autorización del área responsable.', PAGE_W / 2, PAGE_H - 22, { align: 'center' });
 }
@@ -469,7 +469,7 @@ export async function exportReportPDF(
   const projects = Array.isArray(projectsOrUserName) ? projectsOrUserName : [];
   const userName = Array.isArray(projectsOrUserName) ? userNameArg : projectsOrUserName;
   const emailToUser = options.emailToUser === false;
-  const emailSubject = options.emailSubject || `Informe PDF Control de Obras DGC - ${format(new Date(), 'yyyy-MM-dd')}`;
+  const emailSubject = options.emailSubject || `Informe PDF Control de Obras - ${format(new Date(), 'yyyy-MM-dd')}`;
   const showIncludedProjects = options.showIncludedProjects !== false;
   const includeDailyReports = options.includeDailyReports !== false;
   const includePhotos = options.includePhotos !== false;
