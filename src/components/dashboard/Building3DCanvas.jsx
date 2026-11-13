@@ -36,17 +36,17 @@ export function getFloorPriority(floorName) {
   const name = String(floorName || "").trim().toLowerCase();
   
   if (name.includes("subterraneo") || name.includes("subterráneo")) {
-    const match = name.match(/\d+/);
-    const num = match ? Number(match[0]) : 1;
-    return -10 - num; // Sub 3 = -13, Sub 2 = -12, Sub 1 = -11
+    const match = name.match(/-?\d+/);
+    const num = match ? Math.abs(Number(match[0])) : 1;
+    return -10 - num; // Sub 1 = -11, Sub 2 = -12, Sub 3 = -13
   }
   
   if (name.includes("exterior")) {
     return -5;
   }
   
-  if (name.includes("comun") || name.includes("común")) {
-    return -2;
+  if (name.includes("comun") || name.includes("común") || name.includes("lobby")) {
+    return 0;
   }
   
   if (name.includes("cubierta") || name.includes("techo") || name.includes("azotea")) {
@@ -56,11 +56,10 @@ export function getFloorPriority(floorName) {
   // Standard Pisos
   const match = name.match(/\d+/);
   if (match) {
-    const num = Number(match[0]);
-    return num;
+    return Number(match[0]);
   }
   
-  return 0; // Default
+  return 1; // Default
 }
 
 export default function Building3DCanvas({
@@ -93,15 +92,26 @@ export default function Building3DCanvas({
     const camera = cameraRef.current;
     const controls = controlsRef.current;
 
-    const buildingHeight = Math.max(numFloors * 1.5, 3);
-    const targetY = buildingHeight / 2;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    floorMeshesRef.current.forEach((mesh) => {
+      minY = Math.min(minY, mesh.position.y);
+      maxY = Math.max(maxY, mesh.position.y);
+    });
 
-    controls.target.set(0, targetY, 0);
+    if (minY === Infinity || maxY === -Infinity) {
+      const buildingHeight = Math.max((numFloors || 5) * 1.3, 3);
+      minY = 0;
+      maxY = buildingHeight;
+    }
 
-    // Position camera based on height
-    const distance = Math.max(buildingHeight * 1.4, 12);
-    camera.position.set(distance * 0.9, targetY + distance * 0.6, distance * 0.9);
-    camera.lookAt(0, targetY, 0);
+    const centerY = (minY + maxY) / 2;
+    const heightSpan = Math.max(maxY - minY + 2, 4);
+    const distance = Math.max(heightSpan * 1.5, 9);
+
+    controls.target.set(0, centerY, 0);
+    camera.position.set(distance * 0.9, centerY + distance * 0.5, distance * 0.9);
+    camera.lookAt(0, centerY, 0);
     controls.update();
   };
 
@@ -169,15 +179,17 @@ export default function Building3DCanvas({
     gridHelper.position.y = -0.21;
     scene.add(gridHelper);
 
-    // GROUND BASE PLATE
-    const baseGeo = new THREE.BoxGeometry(10, 0.4, 10);
+    // GROUND BASE PLATE (Semi-transparent so underground basements are visible)
+    const baseGeo = new THREE.BoxGeometry(10, 0.08, 10);
     const baseMat = new THREE.MeshStandardMaterial({
-      color: 0x1e293b, // slate-800
-      roughness: 0.8,
-      metalness: 0.2,
+      color: 0x0f172a,
+      roughness: 0.9,
+      metalness: 0.1,
+      transparent: true,
+      opacity: 0.25,
     });
     const baseMesh = new THREE.Mesh(baseGeo, baseMat);
-    baseMesh.position.y = -0.4;
+    baseMesh.position.y = -0.04;
     baseMesh.receiveShadow = true;
     scene.add(baseMesh);
 
@@ -379,25 +391,31 @@ export default function Building3DCanvas({
     const towerFloors = floors.filter(f => !String(f.floor).toLowerCase().includes("exterior"));
     const exteriorFloor = floors.find(f => String(f.floor).toLowerCase().includes("exterior"));
 
+    // Ordenar de abajo hacia arriba (ascendente: Subterráneos -> Áreas Comunes -> Pisos -> Cubierta)
+    const sortedFloors = [...towerFloors].sort(
+      (a, b) => getFloorPriority(a.floor) - getFloorPriority(b.floor)
+    );
+
     const floorHeight = 0.95;
     const floorGap = 0.35;
     const floorStep = floorHeight + floorGap;
 
-    // Find lobby or Piso 1 to set ground at Y = 0
-    const firstAboveGroundIndex = towerFloors.findIndex(f => getFloorPriority(f.floor) >= -2);
+    // Nivel del suelo (Áreas Comunes o Piso 1, donde priority >= 0)
+    const firstAboveGroundIndex = sortedFloors.findIndex(f => getFloorPriority(f.floor) >= 0);
     const activeFirstIndex = firstAboveGroundIndex >= 0 ? firstAboveGroundIndex : 0;
 
     // Stack building floors
-    towerFloors.forEach((floorData, idx) => {
+    sortedFloors.forEach((floorData, idx) => {
       const isCubierta = String(floorData.floor).toLowerCase().includes("cubierta");
-      const isLobby = String(floorData.floor).toLowerCase().includes("comun") || String(floorData.floor).toLowerCase().includes("común");
-      const isBasement = getFloorPriority(floorData.floor) < -2;
+      const isLobby = getFloorPriority(floorData.floor) === 0 || String(floorData.floor).toLowerCase().includes("comun") || String(floorData.floor).toLowerCase().includes("común");
+      const isBasement = getFloorPriority(floorData.floor) < 0;
 
       const currentHeight = isCubierta ? 0.6 : floorHeight;
       const yPos = (idx - activeFirstIndex) * floorStep + currentHeight / 2;
 
       // A. CONCRETE PLATE UNDER EACH FLOOR
-      const plateGeo = new THREE.BoxGeometry(isLobby ? 5.2 : 4.4, 0.12, isLobby ? 5.2 : 4.4);
+      const plateWidth = isBasement ? 5.6 : isLobby ? 5.2 : 4.4;
+      const plateGeo = new THREE.BoxGeometry(plateWidth, 0.12, plateWidth);
       const plateMat = new THREE.MeshStandardMaterial({
         color: isBasement ? 0x1e293b : 0x334155, // slate-800 for basement plates
         roughness: 0.9,
@@ -411,12 +429,12 @@ export default function Building3DCanvas({
       scene.add(plateMesh);
 
       // B. INTERACTIVE FLOOR BODY
-      const bodyWidth = isLobby ? 4.7 : 3.9;
+      const bodyWidth = isBasement ? 5.2 : isLobby ? 4.7 : 3.9;
       const bodyGeo = new THREE.BoxGeometry(bodyWidth, currentHeight, bodyWidth);
 
-      // Determine color based on visualMode
+      // Determine color based on visualMode - Subterráneo y Áreas Comunes usan su progreso real
       let colorHex = getFloorColorHex(floorData.pct);
-      let opacity = 0.6;
+      let opacity = isBasement ? 0.8 : isLobby ? 0.75 : 0.6;
       let emissiveHex = 0x000000;
       let emissiveIntensity = 0;
 
@@ -426,11 +444,6 @@ export default function Building3DCanvas({
         return res !== "" && res !== "sin restricción" && res !== "sin restriccion";
       });
 
-      if (isBasement) {
-        colorHex = 0x475569; // matte slate for basement concrete blocks
-        opacity = 0.85;
-      }
-
       if (isCubierta) {
         colorHex = 0x334155; // darker concrete look for roof level
         opacity = 0.9;
@@ -439,12 +452,12 @@ export default function Building3DCanvas({
       if (visualMode === "blocked") {
         if (hasBlockedTasks) {
           colorHex = 0xef4444; // intense red
-          opacity = 0.8;
+          opacity = 0.85;
           emissiveHex = 0xef4444;
-          emissiveIntensity = 0.2;
+          emissiveIntensity = 0.25;
         } else {
-          colorHex = isBasement ? 0x475569 : isCubierta ? 0x334155 : 0x38bdf8;
-          opacity = isBasement ? 0.85 : isCubierta ? 0.9 : 0.3;
+          colorHex = isCubierta ? 0x334155 : 0x38bdf8;
+          opacity = isCubierta ? 0.9 : 0.3;
         }
       } else if (visualMode === "monochrome") {
         const isSelected = selectedFloor === floorData.floor;
@@ -567,10 +580,11 @@ export default function Building3DCanvas({
       scene.add(extWireframe);
     }
 
-    // D. ROOF CAP AND ANTENNA (Stacked above highest index tower floor only if tower floors exist)
-    if (towerFloors.length > 0) {
-      const hasCubierta = towerFloors.some(f => String(f.floor).toLowerCase().includes("cubierta"));
-      const topY = (towerFloors.length - activeFirstIndex) * floorStep - (hasCubierta ? 0.35 : 0.05);
+    // D. ROOF CAP AND ANTENNA (Stacked above highest index tower floor only if above-ground tower floors exist)
+    const hasAboveGround = sortedFloors.some((f) => getFloorPriority(f.floor) > 0);
+    if (hasAboveGround && sortedFloors.length > 0) {
+      const hasCubierta = sortedFloors.some(f => String(f.floor).toLowerCase().includes("cubierta"));
+      const topY = (sortedFloors.length - activeFirstIndex) * floorStep - (hasCubierta ? 0.35 : 0.05);
 
       // Roof plate
       const roofPlateGeo = new THREE.BoxGeometry(4.4, 0.1, 4.4);
@@ -609,6 +623,22 @@ export default function Building3DCanvas({
       beacon.userData = { type: "antenna" };
       scene.add(beacon);
     }
+
+    // Dynamic camera fit to bounds of displayed meshes
+    let minY = Infinity;
+    let maxY = -Infinity;
+    floorMeshesRef.current.forEach((mesh) => {
+      minY = Math.min(minY, mesh.position.y);
+      maxY = Math.max(maxY, mesh.position.y);
+    });
+
+    if (minY !== Infinity && maxY !== -Infinity && controlsRef.current && cameraRef.current) {
+      const centerY = (minY + maxY) / 2;
+      controlsRef.current.target.set(0, centerY, 0);
+      const span = Math.max(maxY - minY + 2, 4);
+      cameraRef.current.position.set(span * 1.5, centerY + span * 0.8, span * 1.5);
+      controlsRef.current.update();
+    }
   }, [floors, visualMode, selectedFloor]);
 
   // Fit camera once when floors list updates (different project/tower)
@@ -632,13 +662,9 @@ export default function Building3DCanvas({
 
     if (!selectedFloor || floors.length === 0) return;
 
-    const towerFloors = floors.filter(f => !String(f.floor).toLowerCase().includes("exterior"));
-    const firstAboveGroundIndex = towerFloors.findIndex(f => getFloorPriority(f.floor) >= -2);
-    const activeFirstIndex = firstAboveGroundIndex >= 0 ? firstAboveGroundIndex : 0;
-
-    const floorHeight = 0.95;
-    const floorGap = 0.35;
-    const floorStep = floorHeight + floorGap;
+    const targetMesh = floorMeshesRef.current.find(
+      (m) => m.userData?.floor === selectedFloor
+    );
 
     let yPos = 0;
     let outlineGeo = null;
@@ -646,16 +672,17 @@ export default function Building3DCanvas({
     if (String(selectedFloor).toLowerCase().includes("exterior")) {
       yPos = -0.1;
       outlineGeo = new THREE.BoxGeometry(11.2, 0.14, 11.2);
+    } else if (targetMesh) {
+      yPos = targetMesh.position.y;
+      const geom = targetMesh.geometry;
+      if (geom?.parameters) {
+        const { width = 4, height = 0.95, depth = 4 } = geom.parameters;
+        outlineGeo = new THREE.BoxGeometry(width + 0.15, height + 0.12, depth + 0.15);
+      } else {
+        outlineGeo = new THREE.BoxGeometry(4.2, 1.05, 4.2);
+      }
     } else {
-      const floorIdx = towerFloors.findIndex((f) => f.floor === selectedFloor);
-      if (floorIdx === -1) return;
-
-      const isCubierta = String(selectedFloor).toLowerCase().includes("cubierta");
-      const isLobby = String(selectedFloor).toLowerCase().includes("comun") || String(selectedFloor).toLowerCase().includes("común");
-      const currentHeight = isCubierta ? 0.6 : floorHeight;
-
-      yPos = (floorIdx - activeFirstIndex) * floorStep + currentHeight / 2;
-      outlineGeo = new THREE.BoxGeometry(isLobby ? 4.95 : 4.15, currentHeight + 0.12, isLobby ? 4.95 : 4.15);
+      return;
     }
 
     const edges = new THREE.EdgesGeometry(outlineGeo);
@@ -678,19 +705,15 @@ export default function Building3DCanvas({
     const camera = cameraRef.current;
     const controls = controlsRef.current;
 
-    const floorHeight = 0.95;
-    const floorGap = 0.35;
-    const floorStep = floorHeight + floorGap;
-
-    const towerFloors = floors.filter(f => !String(f.floor).toLowerCase().includes("exterior"));
-    const firstAboveGroundIndex = towerFloors.findIndex(f => getFloorPriority(f.floor) >= -2);
-    const activeFirstIndex = firstAboveGroundIndex >= 0 ? firstAboveGroundIndex : 0;
-
     if (!selectedFloor) {
-      const buildingHeight = towerFloors.length * floorStep;
-      const centerY = buildingHeight / 2;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      floorMeshesRef.current.forEach((mesh) => {
+        minY = Math.min(minY, mesh.position.y);
+        maxY = Math.max(maxY, mesh.position.y);
+      });
+      const centerY = minY !== Infinity && maxY !== -Infinity ? (minY + maxY) / 2 : 2;
 
-      // Adjust camera and target Y position relative to center
       const deltaY = centerY - controls.target.y;
       camera.position.y += deltaY;
       controls.target.set(0, centerY, 0);
@@ -699,18 +722,16 @@ export default function Building3DCanvas({
     }
 
     let targetY = 0;
+    const targetMesh = floorMeshesRef.current.find(
+      (m) => m.userData?.floor === selectedFloor
+    );
+
     if (String(selectedFloor).toLowerCase().includes("exterior")) {
       targetY = -0.1;
+    } else if (targetMesh) {
+      targetY = targetMesh.position.y;
     } else {
-      const floorIdx = towerFloors.findIndex((f) => f.floor === selectedFloor);
-      if (floorIdx === -1) return;
-
-      const isCubierta = String(selectedFloor).toLowerCase().includes("cubierta");
-      if (isCubierta) {
-        targetY = (floorIdx - activeFirstIndex) * floorStep + 0.3;
-      } else {
-        targetY = (floorIdx - activeFirstIndex) * floorStep + floorHeight / 2;
-      }
+      return;
     }
 
     // Shift camera & target vertically by the delta (prevents jumping back to diagonal view)

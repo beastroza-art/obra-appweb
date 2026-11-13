@@ -1,4 +1,9 @@
-import { getFloorList, getFloorNumber } from "@/utils/floors";
+import {
+  getFloorList,
+  getFloorNumber,
+  getCanonicalFloorName,
+  getFloorPriority,
+} from "@/utils/floors";
 import {
   SCOPE_TYPES,
   normalizeScopeTypeValue,
@@ -48,7 +53,17 @@ export function isDepartamentoScopeItem(item) {
 
 export function itemMatchesFloor(item, floorName) {
   if (!floorName) return false;
-  return getFloorList(item?.floor).includes(floorName);
+  const canonicalTarget = getCanonicalFloorName(floorName);
+  const canonicalItem = getCanonicalFloorName(item?.floor);
+
+  if (canonicalTarget === canonicalItem) return true;
+
+  const list = getFloorList(item?.floor).map(getCanonicalFloorName);
+  if (list.includes(canonicalTarget)) return true;
+
+  if (getFloorList(item?.floor).includes(floorName)) return true;
+
+  return false;
 }
 
 export function getVerticalFloorRange(item) {
@@ -97,10 +112,36 @@ export function verticalPassesThroughFloor(item, floorName) {
 }
 
 export function getPisoItemsForFloor(items, floorName, towerFilter) {
+  const cleanFloor = String(floorName || "").toLowerCase();
+  const isBasement = cleanFloor.includes("subterraneo") || cleanFloor.includes("subterráneo");
+  const isComun = cleanFloor.includes("comun") || cleanFloor.includes("común");
+
   return items.filter((item) => {
-    if (towerFilter && towerFilter !== "__all__" && item.tower !== towerFilter) {
-      return false;
+    const itemTower = String(item.tower || "").trim();
+    const itemIsBasement =
+      itemTower.toLowerCase().includes("subterraneo") ||
+      itemTower.toLowerCase().includes("subterráneo") ||
+      item.zone_type === "subterraneo" ||
+      String(item.floor || "").toLowerCase().includes("subterraneo") ||
+      String(item.floor || "").toLowerCase().includes("subterráneo");
+
+    const itemIsComun =
+      itemTower.toLowerCase().includes("comun") ||
+      itemTower.toLowerCase().includes("común") ||
+      item.zone_type === "areas_comunes" ||
+      String(item.floor || "").toLowerCase().includes("comun") ||
+      String(item.floor || "").toLowerCase().includes("común");
+
+    if (isBasement) {
+      if (!itemIsBasement) return false;
+    } else if (isComun) {
+      if (!itemIsComun) return false;
+    } else {
+      if (towerFilter && towerFilter !== "__all__" && itemTower !== towerFilter) {
+        return false;
+      }
     }
+
     if (!isPisoScopeItem(item)) return false;
     return itemMatchesFloor(item, floorName);
   });
@@ -116,10 +157,36 @@ export function getVerticalItemsForFloor(items, floorName, towerFilter) {
 }
 
 export function getDepartamentoItemsForFloor(items, floorName, towerFilter) {
+  const cleanFloor = String(floorName || "").toLowerCase();
+  const isBasement = cleanFloor.includes("subterraneo") || cleanFloor.includes("subterráneo");
+  const isComun = cleanFloor.includes("comun") || cleanFloor.includes("común");
+
   return items.filter((item) => {
-    if (towerFilter && towerFilter !== "__all__" && item.tower !== towerFilter) {
-      return false;
+    const itemTower = String(item.tower || "").trim();
+    const itemIsBasement =
+      itemTower.toLowerCase().includes("subterraneo") ||
+      itemTower.toLowerCase().includes("subterráneo") ||
+      item.zone_type === "subterraneo" ||
+      String(item.floor || "").toLowerCase().includes("subterraneo") ||
+      String(item.floor || "").toLowerCase().includes("subterráneo");
+
+    const itemIsComun =
+      itemTower.toLowerCase().includes("comun") ||
+      itemTower.toLowerCase().includes("común") ||
+      item.zone_type === "areas_comunes" ||
+      String(item.floor || "").toLowerCase().includes("comun") ||
+      String(item.floor || "").toLowerCase().includes("común");
+
+    if (isBasement) {
+      if (!itemIsBasement) return false;
+    } else if (isComun) {
+      if (!itemIsComun) return false;
+    } else {
+      if (towerFilter && towerFilter !== "__all__" && itemTower !== towerFilter) {
+        return false;
+      }
     }
+
     if (!isDepartamentoScopeItem(item)) return false;
     return itemMatchesFloor(item, floorName);
   });
@@ -168,16 +235,100 @@ export function getEarliestStartDate(items) {
   }, "");
 }
 
-export function buildFloorSummaries(items, towerFilter, configFloors = []) {
+export function buildFloorSummaries(items, towerFilter, configFloors = [], projectObj = null) {
+  const isSubFilter = /subterr[aá]neo/i.test(String(towerFilter || ""));
+  const isComunFilter = /com[uú]n/i.test(String(towerFilter || ""));
+
   const floorNames = new Set();
 
-  // Add all project configuration floors if provided
+  // 1. Caso: Filtrado exclusivo por Subterráneo
+  if (isSubFilter) {
+    let maxSub = 0;
+
+    try {
+      let subs = projectObj?.subterraneos;
+      if (typeof subs === "string") subs = JSON.parse(subs);
+      if (Array.isArray(subs)) {
+        subs.forEach((s) => {
+          const match = String(s).match(/-?\d+/);
+          const num = match ? Math.abs(parseInt(match[0], 10)) : 1;
+          if (num > maxSub) maxSub = num;
+        });
+      }
+    } catch {}
+
+    items.forEach((item) => {
+      const isSub =
+        /subterr[aá]neo/i.test(String(item.tower || "")) ||
+        item.zone_type === "subterraneo" ||
+        /subterr[aá]neo/i.test(String(item.floor || ""));
+      if (isSub) {
+        const match = String(item.floor).match(/-?\d+/);
+        const num = match ? Math.abs(parseInt(match[0], 10)) : 1;
+        if (num > maxSub) maxSub = num;
+      }
+    });
+
+    if (maxSub === 0) maxSub = 1;
+
+    for (let s = 1; s <= maxSub; s++) {
+      floorNames.add(`Subterráneo -${s}`);
+    }
+
+    return [...floorNames]
+      .map((floor) => {
+        const pisoItemsOnly = getPisoItemsForFloor(items, floor, towerFilter);
+        const deptoItemsOnly = getDepartamentoItemsForFloor(items, floor, towerFilter);
+        const pisoItems = [...pisoItemsOnly, ...deptoItemsOnly];
+        const pct = computeFloorGlobalPct(pisoItems);
+        const qtySummary = computeFloorQtySummary(pisoItems);
+        const startDate = getEarliestStartDate(pisoItems);
+
+        return {
+          floor,
+          floorNum: getFloorNumber(floor) ?? -1,
+          pct,
+          pisoItems,
+          qtySummary,
+          startDate,
+          itemCount: pisoItems.length,
+        };
+      })
+      .sort((a, b) => getFloorPriority(b.floor) - getFloorPriority(a.floor));
+  }
+
+  // 2. Caso: Filtrado exclusivo por Áreas Comunes
+  if (isComunFilter) {
+    floorNames.add("Áreas Comunes");
+
+    return [...floorNames].map((floor) => {
+      const pisoItemsOnly = getPisoItemsForFloor(items, floor, towerFilter);
+      const deptoItemsOnly = getDepartamentoItemsForFloor(items, floor, towerFilter);
+      const pisoItems = [...pisoItemsOnly, ...deptoItemsOnly];
+      const pct = computeFloorGlobalPct(pisoItems);
+      const qtySummary = computeFloorQtySummary(pisoItems);
+      const startDate = getEarliestStartDate(pisoItems);
+
+      return {
+        floor,
+        floorNum: 0,
+        pct,
+        pisoItems,
+        qtySummary,
+        startDate,
+        itemCount: pisoItems.length,
+      };
+    });
+  }
+
+  // 3. Torre específica o Todo el Edificio:
+  // Agregar pisos de la torre
   if (Array.isArray(configFloors)) {
     configFloors.forEach((f) => {
       if (f && typeof f === "string") {
         const trimmed = f.trim();
         if (!trimmed.includes("→") && !trimmed.includes("->")) {
-          floorNames.add(trimmed);
+          floorNames.add(getCanonicalFloorName(trimmed));
         }
       }
     });
@@ -189,44 +340,95 @@ export function buildFloorSummaries(items, towerFilter, configFloors = []) {
           if (f && typeof f === "string") {
             const trimmed = f.trim();
             if (!trimmed.includes("→") && !trimmed.includes("->")) {
-              floorNames.add(trimmed);
+              floorNames.add(getCanonicalFloorName(trimmed));
             }
           }
         });
       }
-    } catch {
-      // ignore JSON parse failure
+    } catch {}
+  }
+
+  // Subterráneos que pertenecen a la base del edificio
+  let maxSub = 0;
+  try {
+    let subs = projectObj?.subterraneos;
+    if (typeof subs === "string") subs = JSON.parse(subs);
+    if (Array.isArray(subs)) {
+      subs.forEach((s) => {
+        const match = String(s).match(/-?\d+/);
+        const num = match ? Math.abs(parseInt(match[0], 10)) : 0;
+        if (num > maxSub) maxSub = num;
+      });
+    }
+  } catch {}
+
+  items.forEach((item) => {
+    const isSub =
+      /subterr[aá]neo/i.test(String(item.tower || "")) ||
+      item.zone_type === "subterraneo" ||
+      /subterr[aá]neo/i.test(String(item.floor || ""));
+    if (isSub) {
+      const match = String(item.floor).match(/-?\d+/);
+      const num = match ? Math.abs(parseInt(match[0], 10)) : 0;
+      if (num > maxSub) maxSub = num;
+    }
+  });
+
+  if (maxSub > 0) {
+    for (let s = 1; s <= maxSub; s++) {
+      floorNames.add(`Subterráneo -${s}`);
     }
   }
 
+  // Áreas comunes en nivel de acceso
+  let hasComunes = false;
+  try {
+    let areas = projectObj?.areas_comunes;
+    if (typeof areas === "string") areas = JSON.parse(areas);
+    if (Array.isArray(areas) && areas.length > 0) hasComunes = true;
+  } catch {}
+  if (
+    items.some(
+      (i) =>
+        /com[uú]n/i.test(String(i.tower || "")) ||
+        i.zone_type === "areas_comunes" ||
+        /com[uú]n/i.test(String(i.floor || ""))
+    )
+  ) {
+    hasComunes = true;
+  }
+  if (hasComunes) {
+    floorNames.add("Áreas Comunes");
+  }
+
+  // Pisos de las partidas
   items.forEach((item) => {
-    if (towerFilter && towerFilter !== "__all__" && item.tower !== towerFilter) {
-      return;
+    const isBasement =
+      /subterr[aá]neo/i.test(String(item.tower || "")) ||
+      item.zone_type === "subterraneo" ||
+      /subterr[aá]neo/i.test(String(item.floor || ""));
+    const isComun =
+      /com[uú]n/i.test(String(item.tower || "")) ||
+      item.zone_type === "areas_comunes" ||
+      /com[uú]n/i.test(String(item.floor || ""));
+
+    if (!isBasement && !isComun) {
+      if (towerFilter && towerFilter !== "__all__" && item.tower !== towerFilter) {
+        return;
+      }
     }
 
     if (isPisoScopeItem(item) || isDepartamentoScopeItem(item)) {
       getFloorList(item.floor).forEach((floor) => {
-        const trimmed = String(floor || "").trim();
-        if (trimmed && !trimmed.includes("→") && !trimmed.includes("->")) {
-          floorNames.add(trimmed);
+        const canonical = getCanonicalFloorName(floor);
+        if (canonical && !canonical.includes("→") && !canonical.includes("->")) {
+          floorNames.add(canonical);
         }
       });
     }
 
     if (isVerticalScope(getEffectiveScopeType(item))) {
-      const { from, to, fromNum, toNum } = getVerticalFloorRange(item);
-      if (from) {
-        const trimmedFrom = String(from || "").trim();
-        if (trimmedFrom && !trimmedFrom.includes("→") && !trimmedFrom.includes("->")) {
-          floorNames.add(trimmedFrom);
-        }
-      }
-      if (to) {
-        const trimmedTo = String(to || "").trim();
-        if (trimmedTo && !trimmedTo.includes("→") && !trimmedTo.includes("->")) {
-          floorNames.add(trimmedTo);
-        }
-      }
+      const { fromNum, toNum } = getVerticalFloorRange(item);
       if (fromNum !== null && toNum !== null) {
         const min = Math.min(fromNum, toNum);
         const max = Math.max(fromNum, toNum);
@@ -236,46 +438,6 @@ export function buildFloorSummaries(items, towerFilter, configFloors = []) {
       }
     }
   });
-
-  // Calculate lowest subterranean number and highest piso number
-  let minSub = 0;
-  let maxPiso = 1;
-  let hasCubierta = false;
-
-  floorNames.forEach((name) => {
-    const clean = String(name || "").trim().toLowerCase();
-    if (clean.includes("cubierta") || clean.includes("azotea")) {
-      hasCubierta = true;
-    }
-    const subMatch = clean.match(/subterraneo\s*(\d+)/i) || clean.normalize("NFD").replace(/[\u0300-\u036f]/g, "").match(/subterraneo\s*(\d+)/i);
-    if (subMatch) {
-      const num = parseInt(subMatch[1], 10);
-      if (num > minSub) minSub = num;
-    }
-    const floorMatch = clean.match(/piso\s*(\d+)/i);
-    if (floorMatch) {
-      const num = parseInt(floorMatch[1], 10);
-      if (num > maxPiso) maxPiso = num;
-    }
-  });
-
-  // Fill in gapless subterranean levels if any subterranean floor exists
-  if (minSub > 0) {
-    for (let s = minSub; s >= 1; s--) {
-      floorNames.add(`Subterráneo ${s}`);
-    }
-  }
-
-  // Fill in gapless piso levels
-  if (maxPiso > 0) {
-    for (let p = 1; p <= maxPiso; p++) {
-      floorNames.add(`Piso ${p}`);
-    }
-  }
-
-  if (hasCubierta || items.some(i => String(i.scope_type || "").includes("vertical"))) {
-    floorNames.add("Cubierta");
-  }
 
   return [...floorNames]
     .map((floor) => {
@@ -296,12 +458,7 @@ export function buildFloorSummaries(items, towerFilter, configFloors = []) {
         itemCount: pisoItems.length,
       };
     })
-    .sort((a, b) => {
-      if (b.floorNum !== a.floorNum) return b.floorNum - a.floorNum;
-      return String(a.floor).localeCompare(String(b.floor), "es", {
-        numeric: true,
-      });
-    });
+    .sort((a, b) => getFloorPriority(b.floor) - getFloorPriority(a.floor));
 }
 
 export function getVerticalShortLabel(item) {

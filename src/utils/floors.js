@@ -15,7 +15,7 @@ export function getFloorNumber(floor) {
 export function getFloorSortScore(floorName) {
   const clean = String(floorName || "").trim().toLowerCase();
 
-  const subMatch = clean.match(/subterraneo\s*(\d+)/i) || clean.normalize("NFD").replace(/[\u0300-\u036f]/g, "").match(/subterraneo\s*(\d+)/i);
+  const subMatch = clean.match(/subterraneo\s*-?(\d+)/i) || clean.normalize("NFD").replace(/[\u0300-\u036f]/g, "").match(/subterraneo\s*-?(\d+)/i);
   if (subMatch) {
     const num = parseInt(subMatch[1], 10);
     return -100 - num;
@@ -36,6 +36,55 @@ export function getFloorSortScore(floorName) {
   }
 
   return 0;
+}
+
+export function getCanonicalFloorName(floorName) {
+  const clean = String(floorName || "").trim();
+  const lower = clean
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (lower.includes("subterraneo")) {
+    const match = clean.match(/-?\d+/);
+    const num = match ? Math.abs(parseInt(match[0], 10)) : 1;
+    return `Subterráneo -${num}`;
+  }
+
+  if (lower.includes("comun") || lower.includes("lobby")) {
+    return "Áreas Comunes";
+  }
+
+  return clean;
+}
+
+export function getFloorPriority(floorName) {
+  const name = String(floorName || "").trim().toLowerCase();
+
+  if (name.includes("subterraneo") || name.includes("subterráneo")) {
+    const match = name.match(/-?\d+/);
+    const num = match ? Math.abs(Number(match[0])) : 1;
+    return -10 - num; // Sub 1 = -11, Sub 2 = -12, Sub 3 = -13
+  }
+
+  if (name.includes("exterior")) {
+    return -5;
+  }
+
+  if (name.includes("comun") || name.includes("común") || name.includes("lobby")) {
+    return 0; // Planta baja / Nivel calle
+  }
+
+  if (name.includes("cubierta") || name.includes("techo") || name.includes("azotea")) {
+    return 1000;
+  }
+
+  const match = name.match(/\d+/);
+  if (match) {
+    return Number(match[0]);
+  }
+
+  return 1;
 }
 
 export function sortFloors(a, b) {

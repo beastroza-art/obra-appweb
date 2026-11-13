@@ -900,16 +900,21 @@ export default function DailyLogForm({
       : resolvedMasterItem?.executed_qty || 0
   );
 
+  const baselineProgress = Math.max(
+    0,
+    currentAccumulated - (initialLogData ? Number(initialLogData.executed_today || 0) : 0)
+  );
+
   const displayedTargetReached = isMultiFloor
     ? activeFloorData?.target_reached !== undefined && activeFloorData?.target_reached !== ""
       ? activeFloorData.target_reached
       : activeFloorData?.executed_today !== undefined && activeFloorData?.executed_today !== ""
-      ? Math.min(100, currentAccumulated + Number(activeFloorData.executed_today))
+      ? Math.min(100, baselineProgress + Number(activeFloorData.executed_today))
       : ""
     : form.target_reached !== undefined && form.target_reached !== ""
     ? form.target_reached
     : form.executed_today !== undefined && form.executed_today !== ""
-    ? Math.min(100, currentAccumulated + Number(form.executed_today))
+    ? Math.min(100, baselineProgress + Number(form.executed_today))
     : "";
 
   const handleTargetReachedChange = (value) => {
@@ -923,8 +928,9 @@ export default function DailyLogForm({
       return;
     }
 
-    const num = Math.min(100, Math.max(0, Number(value) || 0));
-    const diff = Math.max(0, num - currentAccumulated);
+    const raw = Number(value);
+    const num = Math.min(100, Math.max(baselineProgress, isNaN(raw) ? baselineProgress : raw));
+    const diff = Math.max(0, num - baselineProgress);
 
     if (isMultiFloor) {
       updateActiveFloorField("target_reached", num);
@@ -1563,7 +1569,7 @@ export default function DailyLogForm({
           }
 
           if (!fd.observations?.trim()) {
-            fd.observations = "Sin observaciones";
+            throw new Error(`Debe ingresar las observaciones para el ${fl}.`);
           }
           if (fd.has_restriction && !fd.restriction_detail?.trim()) {
             throw new Error(
@@ -1572,6 +1578,17 @@ export default function DailyLogForm({
           }
 
           const rawCrewWorkers = buildCrewWorkers(fd.workers || []);
+          const validFloorWorkers = rawCrewWorkers.filter((w) => w.name?.trim() && w.role?.trim());
+          if (validFloorWorkers.length === 0) {
+            throw new Error(`Debe ingresar al menos un integrante en la cuadrilla para el ${fl} con nombre y cargo.`);
+          }
+          const incompleteFloorWorkers = rawCrewWorkers.filter(
+            (w) => (w.name?.trim() && !w.role?.trim()) || (!w.name?.trim() && w.role?.trim())
+          );
+          if (incompleteFloorWorkers.length > 0) {
+            throw new Error(`Cada integrante de la cuadrilla en el ${fl} debe tener nombre y cargo.`);
+          }
+
           const crewWorkers = floorZeroProg
             ? rawCrewWorkers.map((w) => ({
                 ...w,
@@ -1718,13 +1735,27 @@ export default function DailyLogForm({
           }))
         : rawCrewWorkers;
 
-      /* workers optional */
+      // Validación de Observaciones
+      if (!form.observations || !form.observations.trim()) {
+        throw new Error("Debe ingresar las observaciones del reporte.");
+      }
 
-      /* exec limit removed */
+      // Validación de Restricción
+      if (form.has_restriction && !form.restriction_detail?.trim()) {
+        throw new Error("Debe ingresar el detalle de la restricción.");
+      }
 
-      /* hours limit removed */
-
-      /* workers validation removed */
+      // Validación de Personal (Cuadrilla)
+      const validCrew = rawCrewWorkers.filter((w) => w.name?.trim() && w.role?.trim());
+      if (validCrew.length === 0) {
+        throw new Error("Debe ingresar al menos un integrante en la cuadrilla con nombre y cargo.");
+      }
+      const incompleteCrew = rawCrewWorkers.filter(
+        (w) => (w.name?.trim() && !w.role?.trim()) || (!w.name?.trim() && w.role?.trim())
+      );
+      if (incompleteCrew.length > 0) {
+        throw new Error("Cada integrante de la cuadrilla debe tener nombre y cargo.");
+      }
 
       const totalHours = isZeroProgress
         ? 0
@@ -2166,11 +2197,11 @@ export default function DailyLogForm({
                 <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-slate-600">Avance que lleva:</span>
-                    <span className="text-sm font-black text-slate-900 font-mono">{currentAccumulated}%</span>
+                    <span className="text-sm font-black text-slate-900 font-mono">{baselineProgress}%</span>
                   </div>
-                  {displayedTargetReached !== "" && Number(displayedTargetReached) > currentAccumulated ? (
+                  {displayedTargetReached !== "" && Number(displayedTargetReached) > baselineProgress ? (
                     <span className="text-xs font-bold text-emerald-700 bg-emerald-100/90 px-2.5 py-0.5 rounded-lg border border-emerald-300">
-                      +{Number(displayedTargetReached) - currentAccumulated}% hoy → Llega a {displayedTargetReached}%
+                      +{Number(displayedTargetReached) - baselineProgress}% hoy → Llega a {displayedTargetReached}%
                     </span>
                   ) : isZeroProgress ? (
                     <span className="text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-lg">
@@ -2183,21 +2214,137 @@ export default function DailyLogForm({
                   )}
                 </div>
 
-                {/* Barra de progreso visual con el estado actual */}
-                <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden flex shadow-inner">
-                  <div
-                    className="bg-slate-500 h-full transition-all duration-300"
-                    style={{ width: `${Math.min(100, currentAccumulated)}%` }}
-                    title={`Lleva: ${currentAccumulated}%`}
-                  />
-                  {!isZeroProgress && displayedTargetReached !== "" && Number(displayedTargetReached) > currentAccumulated && (
-                    <div
-                      className="bg-gradient-to-r from-orange-500 to-amber-500 h-full transition-all duration-300 animate-pulse"
-                      style={{ width: `${Math.min(100 - currentAccumulated, Number(displayedTargetReached) - currentAccumulated)}%` }}
-                      title={`Avanza hoy: +${Number(displayedTargetReached) - currentAccumulated}%`}
-                    />
-                  )}
-                </div>
+                {/* Barra interactiva táctil / mouse con deslizador */}
+                {(() => {
+                  const currentVal = isZeroProgress
+                    ? baselineProgress
+                    : displayedTargetReached !== ""
+                    ? Number(displayedTargetReached)
+                    : baselineProgress;
+
+                  return (
+                    <div className="space-y-2 pt-1">
+                      <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                        <span className="flex items-center gap-1.5">
+                          <span>🔒 Base previa:</span>
+                          <strong className="text-slate-900 font-mono text-xs font-bold">{baselineProgress}%</strong>
+                          <span className="text-[10px] text-slate-400 font-normal">(no reducible)</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span>Meta:</span>
+                          <strong className="text-slate-900 font-mono text-xs font-bold">100%</strong>
+                        </span>
+                      </div>
+
+                      {/* Pista interactiva con soporte Touch y Mouse */}
+                      <div className="relative pt-6 pb-2">
+                        {/* Badge flotante sobre el thumb mostrando el porcentaje */}
+                        {!isZeroProgress && (
+                          <div
+                            className="absolute top-0 z-30 pointer-events-none -translate-x-1/2 transition-all duration-75"
+                            style={{ left: `${Math.min(96, Math.max(4, currentVal))}%` }}
+                          >
+                            <span className={cn(
+                              "px-2 py-0.5 rounded-md text-[11px] font-black shadow-md text-white whitespace-nowrap",
+                              currentVal === 100
+                                ? "bg-emerald-600"
+                                : currentVal > baselineProgress
+                                ? "bg-orange-600 ring-2 ring-orange-200"
+                                : "bg-slate-700"
+                            )}>
+                              {currentVal}% {currentVal > baselineProgress ? `(+${currentVal - baselineProgress}%)` : ""}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Barra contenedora */}
+                        <div
+                          className={cn(
+                            "relative w-full h-9 rounded-2xl bg-slate-200 shadow-inner overflow-hidden flex items-center select-none touch-none",
+                            isZeroProgress && "opacity-60 cursor-not-allowed"
+                          )}
+                        >
+                          {/* 1. Base acumulada previa fija (Gris grafito, protegida) */}
+                          <div
+                            className="absolute left-0 top-0 bottom-0 bg-slate-700 flex items-center justify-start pl-2.5 text-[10px] text-white/90 font-bold z-10 transition-all duration-150"
+                            style={{ width: `${Math.min(100, baselineProgress)}%` }}
+                          >
+                            {baselineProgress >= 12 && (
+                              <span className="truncate flex items-center gap-1 text-[10px] tracking-tight">
+                                🔒 {baselineProgress}%
+                              </span>
+                            )}
+                          </div>
+
+                          {/* 2. Avance realizado hoy (Naranja / Esmeralda) */}
+                          {!isZeroProgress && currentVal > baselineProgress && (
+                            <div
+                              className={cn(
+                                "absolute top-0 bottom-0 z-10 transition-all duration-75",
+                                currentVal === 100
+                                  ? "bg-gradient-to-r from-emerald-500 to-emerald-600"
+                                  : "bg-gradient-to-r from-orange-500 via-amber-500 to-orange-500"
+                              )}
+                              style={{
+                                left: `${baselineProgress}%`,
+                                width: `${Math.min(100 - baselineProgress, currentVal - baselineProgress)}%`,
+                              }}
+                            />
+                          )}
+
+                          {/* Marcas de referencia (25%, 50%, 75%) */}
+                          <div className="absolute inset-0 z-15 pointer-events-none flex justify-between px-2 text-[9px] text-slate-400 font-bold opacity-30">
+                            <span style={{ left: "25%" }} className="absolute">|</span>
+                            <span style={{ left: "50%" }} className="absolute">|</span>
+                            <span style={{ left: "75%" }} className="absolute">|</span>
+                          </div>
+
+                          {/* 3. Thumb visual deslizable */}
+                          {!isZeroProgress && (
+                            <div
+                              className="absolute top-1/2 z-20 pointer-events-none -translate-y-1/2 -translate-x-1/2 transition-all duration-75 flex items-center justify-center"
+                              style={{ left: `${Math.min(100, Math.max(baselineProgress, currentVal))}%` }}
+                            >
+                              <div className={cn(
+                                "w-8 h-8 rounded-full bg-white border-[3px] shadow-lg flex items-center justify-center font-black text-[10px] transition-transform",
+                                currentVal === 100
+                                  ? "border-emerald-500 text-emerald-700"
+                                  : "border-orange-500 text-orange-600"
+                              )}>
+                                {currentVal}%
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 4. Input range invisible nativo para Touch / Drag con el dedo o mouse en cualquier pantalla */}
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            step={1}
+                            disabled={isZeroProgress}
+                            value={currentVal}
+                            onChange={(e) => {
+                              const nextVal = Number(e.target.value);
+                              handleTargetReachedChange(Math.max(baselineProgress, nextVal));
+                            }}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed z-30"
+                            aria-label="Ajustar avance de porcentaje"
+                          />
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-slate-500 flex items-center justify-between">
+                        <span>👆 Desliza la barra con el dedo o mouse hacia la derecha para registrar el avance de hoy.</span>
+                        {currentVal > baselineProgress && (
+                          <span className="font-bold text-emerald-700 text-xs">
+                            +{currentVal - baselineProgress}% de avance hoy
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 {/* Campo de entrada principal: ¿A cuánto llegó hoy? */}
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-1 items-end">
@@ -2208,12 +2355,12 @@ export default function DailyLogForm({
                     <div className="relative">
                       <Input
                         type="number"
-                        min={currentAccumulated}
+                        min={baselineProgress}
                         max="100"
-                        value={isZeroProgress ? currentAccumulated : displayedTargetReached}
+                        value={isZeroProgress ? baselineProgress : displayedTargetReached}
                         onChange={(e) => handleTargetReachedChange(e.target.value)}
                         disabled={isZeroProgress}
-                        placeholder={`Ej: ${Math.min(100, currentAccumulated + 20)}`}
+                        placeholder={`Ej: ${Math.min(100, baselineProgress + 20)}`}
                         className={cn(
                           "h-11 text-base font-bold text-slate-900 rounded-xl pr-8 bg-white border-slate-200 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10",
                           isZeroProgress && "bg-amber-50/70 border-amber-300 text-amber-900 cursor-not-allowed"
@@ -2246,8 +2393,8 @@ export default function DailyLogForm({
                   <div className="flex flex-wrap items-center gap-1.5 pt-1">
                     <span className="text-[11px] text-slate-400 mr-1 font-medium">Fijar rápido:</span>
                     {[10, 20, 25, 50, 75].map((val) => {
-                      const projected = Math.min(100, currentAccumulated + val);
-                      if (projected <= currentAccumulated) return null;
+                      const projected = Math.min(100, baselineProgress + val);
+                      if (projected <= baselineProgress) return null;
                       return (
                         <button
                           key={val}
@@ -2274,7 +2421,16 @@ export default function DailyLogForm({
                 <div className="mb-2 flex items-center justify-between">
                   <Label className="flex items-center gap-1.5 text-xs font-semibold">
                     <Users className="h-3.5 w-3.5" />
-                    Integrantes presentes {isMultiFloor ? `(${activeFloor})` : ""}
+                    Integrantes presentes {isMultiFloor ? `(${activeFloor})` : ""} *
+                    {crewWorkersList.length > 0 ? (
+                      <span className="ml-1 text-muted-foreground font-normal">
+                        ({crewWorkersList.length} persona{crewWorkersList.length !== 1 ? "s" : ""})
+                      </span>
+                    ) : (
+                      <span className="ml-1 text-[11px] text-amber-600 font-normal">
+                        (Mínimo 1 integrante con nombre y cargo)
+                      </span>
+                    )}
                   </Label>
 
                   <Button
@@ -2429,9 +2585,10 @@ export default function DailyLogForm({
                     />
                     <Label
                       htmlFor={`has-restriction-${activeFloor || "single"}`}
-                      className="text-xs font-semibold cursor-pointer"
+                      className="text-xs font-semibold cursor-pointer flex items-center gap-1.5"
                     >
-                      ¿Tiene restricción? {isMultiFloor ? `(${activeFloor})` : ""}
+                      <span>¿Tiene restricción? {isMultiFloor ? `(${activeFloor})` : ""}</span>
+                      <span className="text-[11px] text-muted-foreground font-normal">(Opcional)</span>
                     </Label>
                   </div>
                   {isZeroProgress && (
@@ -2499,8 +2656,8 @@ export default function DailyLogForm({
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <Label className="text-xs">
-                    Observaciones {isMultiFloor ? `(${activeFloor})` : ""}
+                  <Label className="text-xs font-semibold">
+                    Observaciones {isMultiFloor ? `(${activeFloor})` : ""} *
                   </Label>
                   <VoiceInputButton
                     value={displayedObservations}
@@ -2774,7 +2931,7 @@ export default function DailyLogForm({
             Cancelar
           </Button>
 
-          <Button onClick={handleSave} disabled={isSaveDisabled}>
+          <Button onClick={handleSave} disabled={saving || uploadingPhotos}>
             {saving
               ? "Guardando..."
               : uploadingPhotos

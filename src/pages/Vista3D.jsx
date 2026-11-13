@@ -87,17 +87,17 @@ export function getFloorPriority(floorName) {
   const name = String(floorName || "").trim().toLowerCase();
   
   if (name.includes("subterraneo") || name.includes("subterráneo")) {
-    const match = name.match(/\d+/);
-    const num = match ? Number(match[0]) : 1;
-    return -10 - num; // Sub 3 = -13, Sub 2 = -12, Sub 1 = -11
+    const match = name.match(/-?\d+/);
+    const num = match ? Math.abs(Number(match[0])) : 1;
+    return -10 - num; // Sub 1 = -11, Sub 2 = -12, Sub 3 = -13
   }
   
   if (name.includes("exterior")) {
     return -5;
   }
   
-  if (name.includes("comun") || name.includes("común")) {
-    return -2;
+  if (name.includes("comun") || name.includes("común") || name.includes("lobby")) {
+    return 0; // Planta baja / Nivel calle
   }
   
   if (name.includes("cubierta") || name.includes("techo") || name.includes("azotea")) {
@@ -107,11 +107,10 @@ export function getFloorPriority(floorName) {
   // Standard Pisos
   const match = name.match(/\d+/);
   if (match) {
-    const num = Number(match[0]);
-    return num;
+    return Number(match[0]);
   }
   
-  return 0; // Default
+  return 1; // Default
 }
 
 export function isExteriorItem(item) {
@@ -308,8 +307,42 @@ export default function Vista3D() {
       
       if (selectedTower === "Exteriores") {
         if (!isExteriorItem(item)) return false;
-      } else if (selectedTower !== "__all__") {
-        if (item.tower !== selectedTower) return false;
+      } else if (selectedTower === "Subterráneo") {
+        const itemTower = String(item.tower || "").toLowerCase();
+        const itemFloor = String(item.floor || "").toLowerCase();
+        const isSub =
+          itemTower.includes("subterraneo") ||
+          itemTower.includes("subterráneo") ||
+          itemFloor.includes("subterraneo") ||
+          itemFloor.includes("subterráneo") ||
+          item.zone_type === "subterraneo";
+        if (!isSub) return false;
+      } else if (selectedTower === "Áreas Comunes") {
+        const itemTower = String(item.tower || "").toLowerCase();
+        const itemFloor = String(item.floor || "").toLowerCase();
+        const isComun =
+          itemTower.includes("comun") ||
+          itemTower.includes("común") ||
+          itemFloor.includes("comun") ||
+          itemFloor.includes("común") ||
+          item.zone_type === "areas_comunes";
+        if (!isComun) return false;
+      } else if (selectedTower && selectedTower !== "__all__") {
+        const itemTower = String(item.tower || "").trim();
+        const isSub =
+          itemTower.toLowerCase().includes("subterraneo") ||
+          itemTower.toLowerCase().includes("subterráneo") ||
+          item.zone_type === "subterraneo" ||
+          String(item.floor || "").toLowerCase().includes("subterraneo") ||
+          String(item.floor || "").toLowerCase().includes("subterráneo");
+        const isComun =
+          itemTower.toLowerCase().includes("comun") ||
+          itemTower.toLowerCase().includes("común") ||
+          item.zone_type === "areas_comunes" ||
+          String(item.floor || "").toLowerCase().includes("comun") ||
+          String(item.floor || "").toLowerCase().includes("común");
+
+        if (itemTower !== selectedTower && !isSub && !isComun) return false;
       }
 
       const type = getActivitySpecialty(item);
@@ -341,15 +374,87 @@ export default function Vista3D() {
     return projects.find((p) => p.name === selectedProject);
   }, [projects, selectedProject]);
 
-  // Available towers for current project (Exteriores excluded to prevent duplicates)
+  // Available towers for current project
   const towers = useMemo(() => {
-    const set = new Set(
-      allProjectItems
-        .map((item) => item.tower)
-        .filter((t) => t && String(t).trim().toLowerCase() !== "exteriores")
-    );
+    const set = new Set();
+
+    if (activeProjectObj?.departments) {
+      try {
+        const parsed =
+          typeof activeProjectObj.departments === "string"
+            ? JSON.parse(activeProjectObj.departments)
+            : activeProjectObj.departments;
+        if (Array.isArray(parsed?.__towers_config__)) {
+          parsed.__towers_config__.forEach((t) => {
+            const name = typeof t === "string" ? t : t?.name;
+            if (name) set.add(name);
+          });
+        }
+      } catch {}
+    }
+
+    if (set.size === 0) {
+      const count = Number(activeProjectObj?.tower_count) || 1;
+      const letters = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
+      for (let i = 0; i < Math.min(count, letters.length); i++) {
+        set.add(`Torre ${letters[i]}`);
+      }
+    }
+
+    let subs = [];
+    try {
+      if (activeProjectObj?.subterraneos) {
+        subs =
+          typeof activeProjectObj.subterraneos === "string"
+            ? JSON.parse(activeProjectObj.subterraneos)
+            : activeProjectObj.subterraneos;
+      }
+    } catch {}
+    if (
+      (Array.isArray(subs) && subs.length > 0) ||
+      allProjectItems.some(
+        (i) =>
+          String(i.tower || "").toLowerCase().includes("subterraneo") ||
+          i.zone_type === "subterraneo"
+      )
+    ) {
+      set.add("Subterráneo");
+    }
+
+    let areas = [];
+    try {
+      if (activeProjectObj?.areas_comunes) {
+        areas =
+          typeof activeProjectObj.areas_comunes === "string"
+            ? JSON.parse(activeProjectObj.areas_comunes)
+            : activeProjectObj.areas_comunes;
+      }
+    } catch {}
+    if (
+      (Array.isArray(areas) && areas.length > 0) ||
+      allProjectItems.some(
+        (i) =>
+          String(i.tower || "").toLowerCase().includes("comun") ||
+          i.zone_type === "areas_comunes"
+      )
+    ) {
+      set.add("Áreas Comunes");
+    }
+
+    allProjectItems.forEach((item) => {
+      const t = String(item.tower || "").trim();
+      if (
+        t &&
+        t.toLowerCase() !== "exteriores" &&
+        !/subterr[aá]neo/i.test(t) &&
+        !/com[uú]n/i.test(t)
+      ) {
+        set.add(t);
+      }
+    });
+
     return [...set].sort();
-  }, [allProjectItems]);
+  }, [allProjectItems, activeProjectObj]);
 
   // Build floor summaries keeping full building floor stack intact
   const floorSummaries = useMemo(() => {
@@ -364,7 +469,7 @@ export default function Vista3D() {
     }
 
     const configFloors = activeProjectObj?.floors || [];
-    const rawSummaries = buildFloorSummaries(allProjectItems, selectedTower, configFloors);
+    const rawSummaries = buildFloorSummaries(allProjectItems, selectedTower, configFloors, activeProjectObj);
     const projectItemIds = new Set((itemsForProject || []).map((i) => i.id));
     const summaries = (rawSummaries || []).map((f) => {
       const filteredPisoItems = (f.pisoItems || []).filter((item) => projectItemIds.has(item.id));
@@ -563,12 +668,13 @@ export default function Vista3D() {
 
                 {/* Torre Select */}
                 <div className="space-y-1">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Torre</span>
-                  <Select value={selectedTower || undefined} onValueChange={setSelectedTower}>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Torre / Sector</span>
+                  <Select value={selectedTower || "__all__"} onValueChange={(val) => setSelectedTower(val === "__all__" ? "" : val)}>
                     <SelectTrigger className="h-8.5 w-full text-xs font-semibold bg-slate-950 border-slate-850 text-white rounded-lg">
-                      <SelectValue placeholder="Seleccione Torre" />
+                      <SelectValue placeholder="Seleccione Torre / Sector" />
                     </SelectTrigger>
                     <SelectContent className="bg-slate-900 border-slate-800 text-white z-[70]">
+                      <SelectItem value="__all__" className="hover:bg-slate-800 focus:bg-slate-800 text-xs">Todas las Torres (Edificio)</SelectItem>
                       <SelectItem value="Exteriores" disabled={selectedScope === "verticales"} className="hover:bg-slate-800 focus:bg-slate-800 text-xs">Exteriores</SelectItem>
                       {towers.map((tower) => (
                         <SelectItem key={tower} value={tower} className="hover:bg-slate-800 focus:bg-slate-800 text-xs">

@@ -7,9 +7,7 @@ import { api } from "@/lib/api";
 
 import KPICards from "../components/dashboard/KPICards";
 import EventCalendar from "../components/dashboard/EventCalendar";
-import FloorProgress from "../components/dashboard/FloorProgress";
 import FilterBar from "../components/dashboard/FilterBar";
-import MasterPlanTable from "../components/master-plan/MasterPlanTable";
 import ProjectForm from "../components/forms/ProjectForm";
 import MasterItemForm from "../components/forms/MasterItemForm";
 import DailyLogForm from "../components/forms/DailyLogForm";
@@ -23,9 +21,9 @@ import { itemHasFloor } from "@/utils/floors";
 function DashboardSkeleton() {
   return (
     <div className="space-y-6 animate-pulse">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        {Array.from({ length: 6 }).map((_, index) => (
-          <Skeleton key={index} className="h-28 rounded-xl" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Skeleton key={index} className="h-32 rounded-xl" />
         ))}
       </div>
 
@@ -36,21 +34,9 @@ function DashboardSkeleton() {
           ))}
           <Skeleton className="h-9 min-w-[200px] flex-1 rounded-md" />
         </div>
-
-        <div className="flex flex-wrap gap-2">
-          {Array.from({ length: 6 }).map((_, index) => (
-            <Skeleton key={index} className="h-8 w-28 rounded-md" />
-          ))}
-        </div>
       </div>
 
       <Skeleton className="h-[420px] rounded-xl" />
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Skeleton className="h-[320px] rounded-xl" />
-        <Skeleton className="h-[320px] rounded-xl" />
-      </div>
-
       <Skeleton className="h-[360px] rounded-xl" />
     </div>
   );
@@ -672,40 +658,9 @@ export default function Dashboard() {
         onRefresh={refreshAll}
       />
 
-      <MasterPlanTable
-        items={filteredItems}
-        projects={projects}
-        dailyLogs={filteredLogs}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        onDailyLog={handleDailyLog}
-        onEditDailyLog={(log, item) => {
-          const effectiveItem =
-            item ||
-            masterItems.find((i) => Number(i.id) === Number(log.master_item_id)) || {
-              id: log.master_item_id,
-              project: log.project,
-              tower: log.tower,
-              floor: log.floor,
-              activity: log.activity,
-              unit: "und",
-              planned_qty: Number(log.executed_today || 0),
-              executed_qty: Number(log.executed_today || 0),
-              crew_name: log.crew_name || "",
-            };
-          setDailyLogItem(effectiveItem);
-          setEditDailyLogData(log);
-          setShowDailyLog(true);
-        }}
-        onDeleteLog={handleDeleteLog}
-        onToggleBlock={handleToggleBlock}
-      />
-
       <div className="grid grid-cols-1 gap-4 md:gap-6">
         <EventCalendar masterItems={filteredItems} dailyLogs={filteredLogs} />
       </div>
-
-      <FloorProgress masterItems={masterItems} projects={filteredProjects} />
 
       <ProjectForm
         open={showProjectForm}
