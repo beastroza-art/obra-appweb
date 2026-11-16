@@ -369,8 +369,13 @@ export default function MasterPlanTable({
                       <UserRound className="h-3 w-3" />
                       {projectSupervisorByName[row.project] || "Sin supervisor"}
                     </p>
-                    <div className="mt-1">
+                    <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                       <FloorsDisplay floor={row.displayFloor} compact selectedFloor={selectedFloor} />
+                      {row.departments && (
+                        <span className="text-[10px] font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                          {row.departments}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1.5">
@@ -569,6 +574,13 @@ export default function MasterPlanTable({
                       </TableCell>
                        <TableCell className="min-w-[160px] max-w-[240px]">
                         <FloorsDisplay floor={row.displayFloor} selectedFloor={selectedFloor} />
+                        {row.departments && (
+                          <div className="mt-1">
+                            <span className="inline-block text-[10px] font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                              {row.departments}
+                            </span>
+                          </div>
+                        )}
                       </TableCell>
 
                       <TableCell className="text-center font-mono font-medium">
