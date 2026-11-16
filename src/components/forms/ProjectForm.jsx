@@ -334,8 +334,8 @@ export default function ProjectForm({
       setActiveFloorName("Piso 1");
       setSubterraneoLevels(2);
       setSelectedSubterraneos([
-        "Subterráneo -1 (Estacionamientos y Bodegas)",
-        "Subterráneo -2 (Estacionamientos y Bodegas)",
+        "Subterráneo -1",
+        "Subterráneo -2",
       ]);
       setSelectedAreasComunes([
         "Sala Eléctrica Principal (TGBT)",
@@ -558,7 +558,7 @@ export default function ProjectForm({
     }
     const generated = [];
     for (let i = 1; i <= levels; i++) {
-      generated.push(`Subterráneo -${i} (Estacionamientos y Bodegas)`);
+      generated.push(`Subterráneo -${i}`);
     }
     setSelectedSubterraneos(generated);
   };
@@ -1490,7 +1490,7 @@ export default function ProjectForm({
                       <Input
                         value={customSubterraneo}
                         onChange={(e) => setCustomSubterraneo(e.target.value)}
-                        placeholder="Ej: Subterráneo -4 (Bodegas Generales)"
+                        placeholder="Ej: Subterráneo -3"
                         className="h-8.5 text-xs bg-white rounded-lg border-slate-200"
                         onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCustomSubterraneoItem())}
                       />

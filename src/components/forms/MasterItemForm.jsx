@@ -290,6 +290,9 @@ export default function MasterItemForm({
   const [selectedSubterraneo, setSelectedSubterraneo] = useState("");
   const [customSubterraneo, setCustomSubterraneo] = useState("");
   const [isCustomSubterraneo, setIsCustomSubterraneo] = useState(false);
+  const [selectedSubSector, setSelectedSubSector] = useState("Estacionamientos");
+  const [customSubSector, setCustomSubSector] = useState("");
+  const [isCustomSubSector, setIsCustomSubSector] = useState(false);
 
   const [selectedExterior, setSelectedExterior] = useState("");
   const [customExterior, setCustomExterior] = useState("");
@@ -371,9 +374,21 @@ export default function MasterItemForm({
   const projectSubterraneos = useMemo(() => {
     if (selectedProjectObj) {
       const pSubs = safeParseJson(selectedProjectObj.subterraneos, []);
-      if (Array.isArray(pSubs) && pSubs.length > 0) return pSubs;
+      if (Array.isArray(pSubs) && pSubs.length > 0) {
+        const set = new Set();
+        pSubs.forEach((s) => {
+          const m = String(s).match(/-?\d+/);
+          const num = m ? Math.abs(parseInt(m[0], 10)) : 1;
+          set.add(`Subterráneo -${num}`);
+        });
+        return Array.from(set).sort((a, b) => {
+          const na = parseInt(a.match(/\d+/)[0], 10);
+          const nb = parseInt(b.match(/\d+/)[0], 10);
+          return na - nb;
+        });
+      }
     }
-    return ["Subterráneo 1", "Subterráneo 2"];
+    return ["Subterráneo -1", "Subterráneo -2"];
   }, [selectedProjectObj]);
 
   const projectExteriores = useMemo(() => {
@@ -502,7 +517,20 @@ export default function MasterItemForm({
 
         if (rawZone === "subterraneo" || rawTower === "Subterráneo" || /Subterr[aá]neo/i.test(rawFloor)) {
           setZoneType("subterraneo");
-          setSelectedSubterraneo(rawFloor);
+          const m = rawFloor.match(/-?\d+/);
+          const num = m ? Math.abs(parseInt(m[0], 10)) : 1;
+          const canonicalLevel = `Subterráneo -${num}`;
+          setSelectedSubterraneo(canonicalLevel);
+
+          let sector = editItem.departments || "";
+          if (!sector) {
+            const parenMatch = rawFloor.match(/\((.*?)\)/);
+            if (parenMatch) sector = parenMatch[1].trim();
+            else if (rawScope === "bodegas" || /bodega/i.test(rawFloor)) sector = "Bodegas";
+            else if (/estacionamiento/i.test(rawFloor)) sector = "Estacionamientos";
+            else sector = "General";
+          }
+          setSelectedSubSector(sector || "General");
         } else if (rawZone === "exterior" || rawTower === "Exteriores" || /exterior/i.test(rawTower) || /exterior/i.test(rawFloor)) {
           setZoneType("exterior");
           setSelectedExterior(rawFloor);
@@ -887,10 +915,11 @@ export default function MasterItemForm({
       }
     } else if (zoneType === "subterraneo") {
       finalTower = "Subterráneo";
-      finalFloor = (isCustomSubterraneo ? customSubterraneo.trim() : selectedSubterraneo) || (projectSubterraneos[0] || "Subterráneo 1");
-      finalScopeType = "piso";
+      finalFloor = selectedSubterraneo || (projectSubterraneos[0] || "Subterráneo -1");
+      const effectiveSector = (isCustomSubSector ? customSubSector.trim() : selectedSubSector) || "General";
+      finalDepartments = effectiveSector;
+      finalScopeType = effectiveSector.toLowerCase().includes("bodega") ? SCOPE_TYPES.BODEGAS : SCOPE_TYPES.PISO;
       finalZoneType = "subterraneo";
-      finalDepartments = "";
     } else if (zoneType === "exterior") {
       finalTower = "Exteriores";
       finalFloor = (isCustomExterior ? customExterior.trim() : selectedExterior) || (projectExteriores[0] || "Exterior");
@@ -1491,74 +1520,111 @@ export default function MasterItemForm({
             </div>
           )}
 
-          {/* Zone 2: SUBTERRÁNEO */}
+          {/* Zone 2: SUBTERRÁNEO (Separación clara de Nivel Físico y Sector) */}
           {zoneType === "subterraneo" && (
-            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
+            <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+              {/* Paso 1: Nivel Físico */}
               <div>
-                <Label className="text-xs font-bold text-slate-800">
-                  Nivel de Subterráneo *
+                <Label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-blue-600" />
+                  1. Nivel Físico (Losa) *
                 </Label>
-                <p className="text-[11px] text-muted-foreground">
-                  Selecciona el nivel o sector del subterráneo configurado para la obra.
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Selecciona la losa o piso estructural del edificio.
                 </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+                  {projectSubterraneos.map((sub) => {
+                    const isSelected = selectedSubterraneo === sub;
+                    return (
+                      <button
+                        key={sub}
+                        type="button"
+                        onClick={() => {
+                          if (editItem) return;
+                          setSelectedSubterraneo(sub);
+                        }}
+                        disabled={Boolean(editItem)}
+                        className={cn(
+                          "flex items-center justify-center p-2.5 rounded-lg border text-xs font-bold transition-all cursor-pointer shadow-2xs",
+                          isSelected
+                            ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                            : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+                          editItem && "cursor-not-allowed opacity-80"
+                        )}
+                      >
+                        <span>{sub}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {projectSubterraneos.map((sub) => {
-                  const isSelected = !isCustomSubterraneo && selectedSubterraneo === sub;
-                  return (
-                    <button
-                      key={sub}
-                      type="button"
-                      onClick={() => {
-                        if (editItem) return;
-                        setIsCustomSubterraneo(false);
-                        setSelectedSubterraneo(sub);
-                      }}
-                      disabled={Boolean(editItem)}
-                      className={cn(
-                        "flex items-center gap-2.5 p-2.5 rounded-lg border text-left text-xs font-semibold transition-all cursor-pointer",
-                        isSelected
-                          ? "bg-primary text-primary-foreground border-primary shadow-xs font-bold"
-                          : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
-                        editItem && "cursor-not-allowed opacity-80"
-                      )}
-                    >
-                      <Car className={cn("w-4 h-4 shrink-0", isSelected ? "text-primary-foreground" : "text-slate-400")} />
-                      <span className="truncate">{sub}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 ml-auto shrink-0" />}
-                    </button>
-                  );
-                })}
+              {/* Paso 2: Sector o Recinto */}
+              <div className="pt-3 border-t border-slate-200/80">
+                <Label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Car className="w-3.5 h-3.5 text-orange-600" />
+                  2. Sector / Recinto en este Nivel *
+                </Label>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Indica a qué área o uso del subterráneo corresponde la tarea.
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+                  {[
+                    { label: "Estacionamientos", icon: "🚗" },
+                    { label: "Bodegas", icon: "📦" },
+                    { label: "Salas Técnicas", icon: "⚡" },
+                    { label: "General", icon: "🏢" },
+                  ].map((sec) => {
+                    const isSelected = !isCustomSubSector && selectedSubSector === sec.label;
+                    return (
+                      <button
+                        key={sec.label}
+                        type="button"
+                        onClick={() => {
+                          if (editItem) return;
+                          setIsCustomSubSector(false);
+                          setSelectedSubSector(sec.label);
+                        }}
+                        disabled={Boolean(editItem)}
+                        className={cn(
+                          "flex items-center gap-2 p-2.5 rounded-lg border text-left text-xs font-semibold transition-all cursor-pointer",
+                          isSelected
+                            ? "bg-slate-900 text-white border-slate-900 shadow-sm font-bold"
+                            : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+                          editItem && "cursor-not-allowed opacity-80"
+                        )}
+                      >
+                        <span className="text-sm">{sec.icon}</span>
+                        <span className="truncate">{sec.label}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5 ml-auto shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
 
                 {!editItem && (
-                  <button
-                    type="button"
-                    onClick={() => setIsCustomSubterraneo(true)}
-                    className={cn(
-                      "flex items-center gap-2 p-2.5 rounded-lg border text-left text-xs font-semibold transition-all border-dashed cursor-pointer",
-                      isCustomSubterraneo
-                        ? "bg-primary/5 text-primary border-primary font-bold"
-                        : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
+                  <div className="mt-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomSubSector(!isCustomSubSector)}
+                      className={cn(
+                        "text-xs font-semibold text-slate-500 hover:text-slate-800 underline cursor-pointer",
+                        isCustomSubSector && "text-blue-600 font-bold"
+                      )}
+                    >
+                      {isCustomSubSector ? "✕ Usar sectores estándar" : "+ ¿Otro recinto? (ej: Sala de Bombas, Bicicleteros...)"}
+                    </button>
+                    {isCustomSubSector && (
+                      <Input
+                        value={customSubSector}
+                        onChange={(e) => setCustomSubSector(e.target.value)}
+                        placeholder="Ej: Sala de Bombas de Achique"
+                        className="h-8 text-xs bg-white mt-1.5"
+                      />
                     )}
-                  >
-                    <Plus className="w-3.5 h-3.5 shrink-0" />
-                    <span>Otro nivel o sector...</span>
-                  </button>
+                  </div>
                 )}
               </div>
-
-              {isCustomSubterraneo && !editItem && (
-                <div className="pt-2">
-                  <Label className="text-xs">Nombre personalizado de subterráneo / sector</Label>
-                  <Input
-                    value={customSubterraneo}
-                    onChange={(e) => setCustomSubterraneo(e.target.value)}
-                    placeholder="Ej: Subterráneo -3 (Bomba de achique)"
-                    className="h-8 text-xs bg-white mt-1"
-                  />
-                </div>
-              )}
             </div>
           )}
 

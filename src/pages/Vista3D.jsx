@@ -963,8 +963,8 @@ export default function Vista3D() {
                                       <span className={cn("text-[7.5px] font-extrabold uppercase px-0.5 border rounded", typeBadgeStyle)}>
                                         {type}
                                       </span>
-                                      <span className="text-[8.5px] text-slate-500 font-medium">
-                                        {item.tower || "General"}
+                                      <span className="text-[8.5px] text-slate-400 font-medium bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700/60">
+                                        {item.departments || (String(item.floor || "").includes("(") ? String(item.floor).match(/\((.*?)\)/)?.[1] : null) || item.tower || "General"}
                                       </span>
                                     </div>
                                   </div>

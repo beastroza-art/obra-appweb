@@ -303,7 +303,7 @@ function normalizeScopePayload(payload) {
         scope_type: scopeType,
         tower,
         floor,
-        departments: "",
+        departments: departments || "",
       };
     case SCOPE_TYPES.DEPARTAMENTO:
       return {
@@ -321,7 +321,7 @@ function normalizeScopePayload(payload) {
         scope_type: scopeType,
         tower,
         floor,
-        departments: "",
+        departments: departments || "",
       };
     default:
       if (isVerticalScope(scopeType)) {
