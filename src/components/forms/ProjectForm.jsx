@@ -215,6 +215,7 @@ export default function ProjectForm({
   const [subterraneoLevels, setSubterraneoLevels] = useState(0);
   const [selectedSubterraneos, setSelectedSubterraneos] = useState([]);
   const [customSubterraneo, setCustomSubterraneo] = useState("");
+  const [subterraneoMode, setSubterraneoMode] = useState("general"); // 'general' | 'per_tower'
 
   // Salas Especiales y Exteriores
   const [selectedAreasComunes, setSelectedAreasComunes] = useState([
@@ -268,6 +269,7 @@ export default function ProjectForm({
 
       setSelectedSubterraneos(parsedSubs);
       setSubterraneoLevels(parsedSubs.length > 0 ? parsedSubs.length : 0);
+      setSubterraneoMode(parsedDeps?.__subterraneo_mode__ || "general");
       setSelectedExteriores(parsedExts);
       setSelectedAreasComunes(parsedComs);
 
@@ -333,6 +335,7 @@ export default function ProjectForm({
       setActiveTowerIndex(0);
       setActiveFloorName("Piso 1");
       setSubterraneoLevels(2);
+      setSubterraneoMode("general");
       setSelectedSubterraneos([
         "Subterráneo -1",
         "Subterráneo -2",
@@ -712,6 +715,7 @@ export default function ProjectForm({
 
       const departmentsObj = {
         __towers_config__: towers,
+        __subterraneo_mode__: subterraneoMode,
       };
 
       towers.forEach((t) => {
@@ -1433,7 +1437,48 @@ export default function ProjectForm({
               {/* ===================== SUBTAB 2: SUBTERRÁNEOS ===================== */}
               {step2Tab === "subterraneos" && (
                 <div className="space-y-3">
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 shadow-2xs">
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3.5 shadow-2xs">
+                    {towers.length > 1 && (
+                      <div className="space-y-1.5 pb-3 border-b border-slate-100">
+                        <Label className="text-xs font-bold text-slate-800">
+                          Distribución de Subterráneos en la Obra:
+                        </Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSubterraneoMode("general")}
+                            className={cn(
+                              "p-2.5 rounded-lg border text-xs text-left transition-all cursor-pointer",
+                              subterraneoMode === "general"
+                                ? "bg-blue-50/80 border-blue-600 text-blue-900 font-bold shadow-2xs"
+                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                            )}
+                          >
+                            <span className="block font-bold">🏢 Subterráneo General / Común</span>
+                            <span className="text-[11px] text-muted-foreground font-normal">
+                              Un solo zócalo continuo bajo tierra compartido por todas las torres.
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setSubterraneoMode("per_tower")}
+                            className={cn(
+                              "p-2.5 rounded-lg border text-xs text-left transition-all cursor-pointer",
+                              subterraneoMode === "per_tower"
+                                ? "bg-blue-50/80 border-blue-600 text-blue-900 font-bold shadow-2xs"
+                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                            )}
+                          >
+                            <span className="block font-bold">🗼 Subterráneo por Torre</span>
+                            <span className="text-[11px] text-muted-foreground font-normal">
+                              Cada torre gestiona sus propios subterráneos independientes.
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     <div>
                       <Label className="text-xs font-bold text-slate-800 block">
                         Niveles de Subterráneo

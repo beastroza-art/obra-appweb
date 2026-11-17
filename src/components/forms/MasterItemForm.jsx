@@ -293,6 +293,7 @@ export default function MasterItemForm({
   const [selectedSubSector, setSelectedSubSector] = useState("Estacionamientos");
   const [customSubSector, setCustomSubSector] = useState("");
   const [isCustomSubSector, setIsCustomSubSector] = useState(false);
+  const [subterraneoTower, setSubterraneoTower] = useState("Subterráneo");
 
   const [selectedExterior, setSelectedExterior] = useState("");
   const [customExterior, setCustomExterior] = useState("");
@@ -521,6 +522,7 @@ export default function MasterItemForm({
           const num = m ? Math.abs(parseInt(m[0], 10)) : 1;
           const canonicalLevel = `Subterráneo -${num}`;
           setSelectedSubterraneo(canonicalLevel);
+          setSubterraneoTower(rawTower || "Subterráneo");
 
           let sector = editItem.departments || "";
           if (!sector) {
@@ -914,7 +916,7 @@ export default function MasterItemForm({
         finalFloor = form.floors?.[0] || "";
       }
     } else if (zoneType === "subterraneo") {
-      finalTower = "Subterráneo";
+      finalTower = (subterraneoTower || "Subterráneo").trim();
       finalFloor = selectedSubterraneo || (projectSubterraneos[0] || "Subterráneo -1");
       const effectiveSector = (isCustomSubSector ? customSubSector.trim() : selectedSubSector) || "General";
       finalDepartments = effectiveSector;
@@ -1523,6 +1525,52 @@ export default function MasterItemForm({
           {/* Zone 2: SUBTERRÁNEO (Separación clara de Nivel Físico y Sector) */}
           {zoneType === "subterraneo" && (
             <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+              {/* Paso 0: Ámbito / Torre si hay más de 1 torre */}
+              {towerOnlyOptions.length > 1 && (
+                <div className="pb-3 border-b border-slate-200/80">
+                  <Label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                    Ámbito o Torre del Subterráneo *
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Indica si el trabajo es en el subterráneo general o en el subterráneo de una torre específica.
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setSubterraneoTower("Subterráneo")}
+                      disabled={Boolean(editItem)}
+                      className={cn(
+                        "px-3 py-2 rounded-lg border text-xs font-bold transition-all cursor-pointer shadow-2xs",
+                        subterraneoTower === "Subterráneo"
+                          ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                          : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+                        editItem && "cursor-not-allowed opacity-80"
+                      )}
+                    >
+                      <span>🏢 Subterráneo General</span>
+                    </button>
+                    {towerOnlyOptions.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setSubterraneoTower(t)}
+                        disabled={Boolean(editItem)}
+                        className={cn(
+                          "px-3 py-2 rounded-lg border text-xs font-bold transition-all cursor-pointer shadow-2xs",
+                          subterraneoTower === t
+                            ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+                            : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+                          editItem && "cursor-not-allowed opacity-80"
+                        )}
+                      >
+                        <span>🗼 {t} (Subterráneo)</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Paso 1: Nivel Físico */}
               <div>
                 <Label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
