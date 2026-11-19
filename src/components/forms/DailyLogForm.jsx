@@ -894,6 +894,22 @@ export default function DailyLogForm({
     if (error) setError("");
   };
 
+  const activeChild =
+    isMultiFloor && activeFloor
+      ? childItems.find(
+          (c) => String(c.floor).trim().toLowerCase() === String(activeFloor).trim().toLowerCase()
+        )
+      : null;
+
+  const activeFloorData =
+    isMultiFloor && activeFloor
+      ? floorData[activeFloor] ||
+        createInitialFloorState(
+          getEffectiveCrew(),
+          form.hours_worked
+        )
+      : null;
+
   const currentAccumulated = Number(
     isMultiFloor && activeChild
       ? activeChild.executed_qty || 0
@@ -1365,15 +1381,6 @@ export default function DailyLogForm({
     setShowSignaturePad(false);
   };
 
-  const activeFloorData =
-    isMultiFloor && activeFloor
-      ? floorData[activeFloor] ||
-        createInitialFloorState(
-          getEffectiveCrew(),
-          form.hours_worked
-        )
-      : null;
-
   const displayedExecuted = isMultiFloor
     ? activeFloorData?.executed_today ?? ""
     : form.executed_today;
@@ -1402,12 +1409,6 @@ export default function DailyLogForm({
     ? activeFloorData?.signatureImage || signatureImage
     : signatureImage;
 
-  const activeChild =
-    isMultiFloor && activeFloor
-      ? childItems.find(
-          (c) => String(c.floor).trim().toLowerCase() === String(activeFloor).trim().toLowerCase()
-        )
-      : null;
   const activeFloorRemaining = activeChild
     ? Math.max(
         Number(activeChild.planned_qty || 0) -
