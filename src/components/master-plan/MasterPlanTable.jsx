@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Building2,
   MoreHorizontal,
   Eye,
   FileText,
@@ -97,36 +98,137 @@ function formatNumber(value) {
 function FloorsDisplay({ floor, compact = false, selectedFloor = null }) {
   const floors = getFloorList(floor);
 
-  if (floors.length === 0) return "—";
+  if (floors.length === 0) return <span className="text-slate-400 font-normal">—</span>;
 
   const hasSelected = selectedFloor && floors.includes(selectedFloor);
   const floorsToShow = hasSelected ? [selectedFloor] : floors;
 
-  const visibleCount = compact ? 2 : 4;
-  const visibleFloors = floorsToShow.slice(0, visibleCount);
-  const remainingCount = floorsToShow.length - visibleFloors.length;
+  // Caso 1: Un solo piso (ej: "Piso 2", "Cubierta", "Subterráneo -1")
+  if (floorsToShow.length === 1) {
+    return (
+      <span className="font-bold text-xs text-slate-800">
+        {floorsToShow[0]}
+      </span>
+    );
+  }
 
-  return (
-    <div
-      className="flex max-w-[220px] flex-wrap items-center gap-1"
-      title={floorsToShow.join(", ")}
-    >
-      {visibleFloors.map((item) => (
-        <span
-          key={item}
-          className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-foreground/80"
-        >
-          {item}
+  // Caso 2: Múltiples pisos
+  // Detectar si forman un rango numérico continuo (ej: Piso 1 al 15)
+  const numericList = floorsToShow
+    .map((f) => {
+      const match = f.match(/\d+/);
+      return match ? parseInt(match[0], 10) : null;
+    })
+    .filter((n) => n !== null);
+
+  const isConsecutiveRange =
+    numericList.length === floorsToShow.length &&
+    numericList.length > 2 &&
+    Math.max(...numericList) - Math.min(...numericList) + 1 === numericList.length;
+
+  if (isConsecutiveRange) {
+    const min = Math.min(...numericList);
+    const max = Math.max(...numericList);
+    return (
+      <div className="flex items-center gap-1.5" title={floorsToShow.join(", ")}>
+        <span className="font-bold text-xs text-slate-800">
+          Piso {min} al {max}
         </span>
-      ))}
+        <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+          {floorsToShow.length} pisos
+        </span>
+      </div>
+    );
+  }
 
-      {remainingCount > 0 && (
-        <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
-          +{remainingCount}
-        </Badge>
-      )}
+  // Si son 2 o 3 pisos no consecutivos
+  if (floorsToShow.length <= 3) {
+    return (
+      <div className="flex items-center gap-1 flex-wrap" title={floorsToShow.join(", ")}>
+        {floorsToShow.map((item) => (
+          <span
+            key={item}
+            className="rounded bg-slate-100 border border-slate-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700"
+          >
+            {item}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
+  // Más de 3 pisos
+  return (
+    <div className="flex items-center gap-1.5" title={floorsToShow.join(", ")}>
+      <span className="font-bold text-xs text-slate-800">
+        {floorsToShow[0]} y otros
+      </span>
+      <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 cursor-help">
+        {floorsToShow.length} pisos
+      </span>
     </div>
   );
+}
+
+function SectorOrDepartmentBadge({ row }) {
+  const scopeType = normalizeScopeTypeValue(row?.scope_type);
+  const rawDeps = (row?.departments || "").trim();
+
+  // Caso 1: Son departamentos (ej: "201, 202, ...")
+  if (
+    scopeType === SCOPE_TYPES.DEPARTAMENTO ||
+    (rawDeps && rawDeps.split(",").every((d) => /^\d+[a-zA-Z]?$/.test(d.trim())))
+  ) {
+    if (!rawDeps) {
+      return (
+        <div className="mt-0.5">
+          <span className="text-[10px] font-medium text-slate-500">Piso completo</span>
+        </div>
+      );
+    }
+    const depsList = rawDeps.split(",").map((d) => d.trim()).filter(Boolean);
+    if (depsList.length <= 3) {
+      return (
+        <div className="mt-0.5" title={rawDeps}>
+          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+            <span>Dptos: {depsList.join(", ")}</span>
+          </span>
+        </div>
+      );
+    }
+    return (
+      <div className="mt-0.5" title={`Departamentos: ${rawDeps}`}>
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/80 cursor-help">
+          <Building2 className="w-3 h-3 text-blue-600 shrink-0" />
+          <span>{depsList.length} departamentos</span>
+        </span>
+      </div>
+    );
+  }
+
+  // Caso 2: Es un sector o recinto específico (ej: "Sala de bomba", "Estacionamientos", "Bodegas", "Conserjería")
+  if (rawDeps) {
+    return (
+      <div className="mt-0.5" title={rawDeps}>
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+          <span>📍 {rawDeps}</span>
+        </span>
+      </div>
+    );
+  }
+
+  // Caso 3: Es Pasillo / Piso completo sin sector nombrado
+  if (scopeType === SCOPE_TYPES.PASILLO) {
+    return (
+      <div className="mt-0.5">
+        <span className="inline-flex items-center text-[10px] font-medium text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200">
+          Pasillo completo
+        </span>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 function buildRowsForFloors(items) {
@@ -369,13 +471,9 @@ export default function MasterPlanTable({
                       <UserRound className="h-3 w-3" />
                       {projectSupervisorByName[row.project] || "Sin supervisor"}
                     </p>
-                    <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                    <div className="mt-1 flex flex-col gap-0.5">
                       <FloorsDisplay floor={row.displayFloor} compact selectedFloor={selectedFloor} />
-                      {row.departments && (
-                        <span className="text-[10px] font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                          {row.departments}
-                        </span>
-                      )}
+                      <SectorOrDepartmentBadge row={row} />
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1.5">
@@ -574,13 +672,7 @@ export default function MasterPlanTable({
                       </TableCell>
                        <TableCell className="min-w-[160px] max-w-[240px]">
                         <FloorsDisplay floor={row.displayFloor} selectedFloor={selectedFloor} />
-                        {row.departments && (
-                          <div className="mt-1">
-                            <span className="inline-block text-[10px] font-medium text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                              {row.departments}
-                            </span>
-                          </div>
-                        )}
+                        <SectorOrDepartmentBadge row={row} />
                       </TableCell>
 
                       <TableCell className="text-center font-mono font-medium">

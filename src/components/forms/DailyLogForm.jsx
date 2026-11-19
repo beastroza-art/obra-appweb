@@ -1187,8 +1187,19 @@ export default function DailyLogForm({
       const rawTow = resolvedMasterItem?.tower;
       const normTow = rawTow === "Subterráneo" ? "" : rawTow;
       const currentTower = normTow ? `${normTow} - ` : "";
-      const currentSector = isMultiFloor && activeFloor ? activeFloor : (resolvedMasterItem?.floor || "Sector General");
-      const currentDptos = resolvedMasterItem?.departments ? ` (Dptos: ${resolvedMasterItem.departments})` : "";
+      const rawSector = isMultiFloor && activeFloor ? activeFloor : (resolvedMasterItem?.floor || "Sector General");
+      const currentSector = rawSector.replace(/^Pasillo\s*\((.*?)\)$/i, "$1");
+      let currentDptos = "";
+      if (resolvedMasterItem?.departments) {
+        const rawDeps = resolvedMasterItem.departments.trim();
+        const isNumericDeps = rawDeps.split(",").every((d) => /^\d+[a-zA-Z]?$/.test(d.trim()));
+        if (isNumericDeps) {
+          const count = rawDeps.split(",").length;
+          currentDptos = count > 3 ? ` (${count} dptos)` : ` (Dptos: ${rawDeps})`;
+        } else {
+          currentDptos = ` (${rawDeps})`;
+        }
+      }
       const currentLoc = `${currentTower}${currentSector}${currentDptos}`;
 
       const currentAuthor = form.capataz_name || form.supervisor || userName || "Capataz en Faena";

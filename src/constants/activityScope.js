@@ -121,12 +121,16 @@ export function getScopeDisplayLabel(item, hideDepartments = false) {
     case SCOPE_TYPES.VERTICAL_CD:
       return getVerticalScopeDisplayLabel(item);
     case SCOPE_TYPES.PASILLO:
-      return `Pasillo (${item?.floor || "Sin piso"})`;
+      if (hideDepartments) return item?.floor || "Pasillo";
+      return item?.departments ? `${item?.floor || "Pasillo"} (${item.departments})` : `Pasillo (${item?.floor || "Sin piso"})`;
     case SCOPE_TYPES.ESPACIOS_COMUNES:
+      if (hideDepartments) return item?.floor || "Espacios Comunes";
       return `Espacios Comunes (${item?.floor || "Sin piso"})`;
     case SCOPE_TYPES.SALAS_ASIGNABLES:
+      if (hideDepartments) return item?.floor || "Salas Asignables";
       return `Salas Asignables (${item?.floor || "Sin piso"})`;
     case SCOPE_TYPES.BODEGAS:
+      if (hideDepartments) return item?.floor || "Bodegas";
       return `Bodegas (${item?.floor || "Sin piso"})`;
     case SCOPE_TYPES.MULTIPLES_PISOS:
       return item?.floor || "Múltiples Pisos";
