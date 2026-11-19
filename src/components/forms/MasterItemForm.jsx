@@ -352,7 +352,7 @@ export default function MasterItemForm({
         const currentTower = parsedDeps.__towers_config__.find((t) => t.name === form.tower);
         if (currentTower) {
           const list = [];
-          if (currentTower.hasRoof) list.push("Cubierta");
+          if (currentTower.hasCubierta || currentTower.hasRoof) list.push("Cubierta");
           const start = Number(currentTower.startFloor) || 1;
           const end = Number(currentTower.endFloor) || 15;
           for (let f = end; f >= start; f--) {
@@ -414,13 +414,51 @@ export default function MasterItemForm({
     ];
   }, [selectedProjectObj]);
 
+  const getFloorDeptoInfo = (floorName) => {
+    if (!selectedProjectObj || !floorName) return null;
+    if (floorName === "Cubierta") {
+      return { count: 0, isRoof: true };
+    }
+    const parsedDeps = safeParseJson(selectedProjectObj.departments, {});
+    let list = null;
+    if (Array.isArray(parsedDeps.__towers_config__)) {
+      const currentTower = parsedDeps.__towers_config__.find((t) => t.name === form.tower);
+      if (currentTower && currentTower.departments && currentTower.departments[floorName] !== undefined) {
+        list = currentTower.departments[floorName];
+      }
+    } else if (parsedDeps[form.tower] && parsedDeps[form.tower][floorName] !== undefined) {
+      list = parsedDeps[form.tower][floorName];
+    } else if (parsedDeps[floorName] !== undefined) {
+      list = parsedDeps[floorName];
+    }
+    if (list !== null && Array.isArray(list)) {
+      return { count: list.length, isConfigured: true };
+    }
+    return null;
+  };
+
   const deptoOptions = useMemo(() => {
     if (selectedProjectObj && form.floors?.[0]) {
       const parsedDeps = safeParseJson(selectedProjectObj.departments, {});
-      const towerDeps = (parsedDeps[form.tower] && parsedDeps[form.tower][form.floors[0]]) || parsedDeps[form.floors[0]] || [];
-      return [...towerDeps]
-        .sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
-        .map((d) => ({ label: String(d), value: String(d) }));
+      let rawDeps = null;
+
+      // 1. Estructura moderna con __towers_config__
+      if (Array.isArray(parsedDeps.__towers_config__)) {
+        const currentTower = parsedDeps.__towers_config__.find((t) => t.name === form.tower);
+        if (currentTower && currentTower.departments && currentTower.departments[form.floors[0]]) {
+          rawDeps = currentTower.departments[form.floors[0]];
+        }
+      } else if (parsedDeps[form.tower] && parsedDeps[form.tower][form.floors[0]]) {
+        rawDeps = parsedDeps[form.tower][form.floors[0]];
+      } else if (parsedDeps[form.floors[0]]) {
+        rawDeps = parsedDeps[form.floors[0]];
+      }
+
+      if (Array.isArray(rawDeps)) {
+        return [...rawDeps]
+          .sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
+          .map((d) => ({ label: String(d), value: String(d) }));
+      }
     }
     return [];
   }, [selectedProjectObj, form.tower, form.floors]);
@@ -1246,12 +1284,14 @@ export default function MasterItemForm({
                     <div className="border rounded-xl p-2 h-48 overflow-y-auto space-y-1 bg-white scrollbar-thin">
                       {projectTowerFloors.map((floor) => {
                         const isSelected = form.floors?.[0] === floor;
+                        const deptoInfo = getFloorDeptoInfo(floor);
                         return (
                           <div
                             key={floor}
                             onClick={() => {
                               if (editItem) return;
                               updateFormField("floors", [floor]);
+                              updateFormField("departments", "");
                             }}
                             className={cn(
                               "flex items-center gap-2 text-xs font-semibold py-1.5 px-2 rounded-lg border transition-all cursor-pointer",
@@ -1267,7 +1307,22 @@ export default function MasterItemForm({
                             )}>
                               {isSelected && <span className="text-[10px]">✓</span>}
                             </div>
-                            <span>{floor}</span>
+                            <span className="truncate">{floor}</span>
+                            {deptoInfo?.isRoof && (
+                              <span className="ml-auto text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/80 font-medium shrink-0">
+                                Azotea
+                              </span>
+                            )}
+                            {!deptoInfo?.isRoof && deptoInfo?.count === 0 && (
+                              <span className="ml-auto text-[9px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/80 font-medium shrink-0">
+                                0 dptos
+                              </span>
+                            )}
+                            {!deptoInfo?.isRoof && deptoInfo?.count > 0 && (
+                              <span className="ml-auto text-[9px] text-slate-500 font-normal shrink-0">
+                                {deptoInfo.count} dptos
+                              </span>
+                            )}
                           </div>
                         );
                       })}
@@ -1354,19 +1409,53 @@ export default function MasterItemForm({
                           </div>
                         </div>
                       ) : (
-                        <div className="border rounded-xl p-3 h-48 flex flex-col justify-between bg-white">
-                          <div className="space-y-1.5">
-                            <Label className="text-[11px] text-muted-foreground">Escribe los números de departamento:</Label>
-                            <Input
-                              value={form.departments}
-                              onChange={(e) => updateFormField("departments", e.target.value)}
-                              placeholder="Ej: 101, 102, 103"
-                              className="h-8 text-xs"
-                              disabled={Boolean(editItem)}
-                            />
-                            <p className="text-[10px] text-muted-foreground">Separados por coma.</p>
-                          </div>
-                        </div>
+                        (() => {
+                          const info = getFloorDeptoInfo(form.floors[0]);
+                          const isZeroOrRoof = info?.isRoof || (info?.isConfigured && info?.count === 0);
+                          if (isZeroOrRoof) {
+                            return (
+                              <div className="border border-dashed border-blue-200 rounded-xl p-3 h-48 flex flex-col items-center justify-center text-center bg-blue-50/40">
+                                <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-1.5">
+                                  {info?.isRoof ? <Layers className="w-4 h-4" /> : <Building2 className="w-4 h-4" />}
+                                </div>
+                                <p className="text-xs font-bold text-slate-800">
+                                  {info?.isRoof ? "La Cubierta no tiene departamentos" : `${form.floors[0]} no tiene departamentos`}
+                                </p>
+                                <p className="text-[11px] text-slate-500 max-w-xs mt-0.5 mb-2.5">
+                                  {info?.isRoof
+                                    ? "Es una azotea técnica (sala de máquinas, calderas, etc.)."
+                                    : "Fue configurado sin departamentos (áreas comunes, hall, etc.)."}
+                                </p>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => {
+                                    setTowerScopeMode("pasillo");
+                                    setFloorSelectionMode("single");
+                                  }}
+                                  className="h-7 text-xs font-bold bg-primary text-primary-foreground shadow-xs cursor-pointer"
+                                >
+                                  Usar modo "Piso Completo / Pasillo"
+                                </Button>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="border rounded-xl p-3 h-48 flex flex-col justify-between bg-white">
+                              <div className="space-y-1.5">
+                                <Label className="text-[11px] text-muted-foreground">Escribe los números de departamento:</Label>
+                                <Input
+                                  value={form.departments}
+                                  onChange={(e) => updateFormField("departments", e.target.value)}
+                                  placeholder="Ej: 101, 102, 103"
+                                  className="h-8 text-xs"
+                                  disabled={Boolean(editItem)}
+                                />
+                                <p className="text-[10px] text-muted-foreground">Separados por coma.</p>
+                              </div>
+                            </div>
+                          );
+                        })()
                       )
                     ) : (
                       <div className="border border-dashed rounded-xl h-48 flex flex-col items-center justify-center text-center p-3 text-slate-400 bg-white">
@@ -1472,6 +1561,7 @@ export default function MasterItemForm({
                   <div className="border rounded-xl p-2.5 h-48 overflow-y-auto space-y-1 bg-white scrollbar-thin">
                     {projectTowerFloors.map((floor) => {
                       const isSelected = form.floors.includes(floor);
+                      const deptoInfo = getFloorDeptoInfo(floor);
                       return (
                         <div
                           key={floor}
@@ -1501,7 +1591,22 @@ export default function MasterItemForm({
                           )}>
                             {isSelected && <span className="text-[10px]">✓</span>}
                           </div>
-                          <span>{floor}</span>
+                          <span className="truncate">{floor}</span>
+                          {deptoInfo?.isRoof && (
+                            <span className="ml-auto text-[9px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200/80 font-medium shrink-0">
+                              Azotea técnica
+                            </span>
+                          )}
+                          {!deptoInfo?.isRoof && deptoInfo?.count === 0 && (
+                            <span className="ml-auto text-[9px] text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/80 font-medium shrink-0">
+                              Área común / 0 dptos
+                            </span>
+                          )}
+                          {!deptoInfo?.isRoof && deptoInfo?.count > 0 && (
+                            <span className="ml-auto text-[9px] text-slate-500 font-normal shrink-0">
+                              {deptoInfo.count} dptos
+                            </span>
+                          )}
                         </div>
                       );
                     })}
