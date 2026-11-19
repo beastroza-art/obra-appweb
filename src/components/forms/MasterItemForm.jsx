@@ -537,8 +537,17 @@ export default function MasterItemForm({
           setZoneType("exterior");
           setSelectedExterior(rawFloor);
         } else if (rawZone === "comun" || rawTower === "Áreas Comunes" || rawScope === "espacios_comunes" || rawScope === "salas_asignables") {
-          setZoneType("comun");
-          setSelectedAreaComun(rawFloor);
+          // Migración suave de ítems heredados de áreas comunes hacia subterráneo
+          setZoneType("subterraneo");
+          if (/subterr[aá]neo/i.test(rawFloor)) {
+            const m = rawFloor.match(/-?\d+/);
+            const num = m ? Math.abs(parseInt(m[0], 10)) : 1;
+            setSelectedSubterraneo(`Subterráneo -${num}`);
+            setSelectedSubSector(editItem.departments || rawFloor);
+          } else {
+            setSelectedSubterraneo(projectSubterraneos[0] || "Subterráneo -1");
+            setSelectedSubSector(rawFloor || editItem.departments || "General");
+          }
         } else if (rawZone === "vertical" || isVerticalScope(rawScope)) {
           setZoneType("vertical");
           setVerticalSubtype(rawScope);
@@ -825,11 +834,6 @@ export default function MasterItemForm({
       if (!finalExt) {
         return "Debe seleccionar o ingresar un sector exterior.";
       }
-    } else if (zoneType === "comun") {
-      const finalCom = isCustomAreaComun ? customAreaComun.trim() : selectedAreaComun;
-      if (!finalCom) {
-        return "Debe seleccionar o ingresar una sala técnica o área común.";
-      }
     } else if (zoneType === "vertical") {
       if (!form.tower) {
         return "Debe seleccionar una torre para la montante vertical.";
@@ -914,6 +918,7 @@ export default function MasterItemForm({
       } else {
         finalScopeType = "pasillo";
         finalFloor = form.floors?.[0] || "";
+        finalDepartments = form.departments?.trim() || "";
       }
     } else if (zoneType === "subterraneo") {
       finalTower = (subterraneoTower || "Subterráneo").trim();
@@ -1097,18 +1102,18 @@ export default function MasterItemForm({
             )}
           </div>
 
-          {/* Macro-Zone Selector */}
+          {/* Macro-Zone Selector (4 Ubicaciones Físicas Reales de Faena) */}
           <div className="space-y-1.5 pt-1">
             <Label className="text-xs font-bold text-slate-700">
               Sector / Zona de la Obra *
             </Label>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
               <button
                 type="button"
                 onClick={() => handleZoneChange("torre")}
                 disabled={Boolean(editItem)}
                 className={cn(
-                  "flex flex-col items-center justify-center py-2 px-2 rounded-lg text-xs font-bold transition-all gap-1 cursor-pointer",
+                  "flex flex-col items-center justify-center py-2.5 px-2 rounded-lg text-xs font-bold transition-all gap-1 cursor-pointer",
                   zoneType === "torre"
                     ? "bg-white text-primary shadow-xs border border-slate-200 font-extrabold"
                     : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60",
@@ -1124,7 +1129,7 @@ export default function MasterItemForm({
                 onClick={() => handleZoneChange("subterraneo")}
                 disabled={Boolean(editItem)}
                 className={cn(
-                  "flex flex-col items-center justify-center py-2 px-2 rounded-lg text-xs font-bold transition-all gap-1 cursor-pointer",
+                  "flex flex-col items-center justify-center py-2.5 px-2 rounded-lg text-xs font-bold transition-all gap-1 cursor-pointer",
                   zoneType === "subterraneo"
                     ? "bg-white text-primary shadow-xs border border-slate-200 font-extrabold"
                     : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60",
@@ -1140,7 +1145,7 @@ export default function MasterItemForm({
                 onClick={() => handleZoneChange("exterior")}
                 disabled={Boolean(editItem)}
                 className={cn(
-                  "flex flex-col items-center justify-center py-2 px-2 rounded-lg text-xs font-bold transition-all gap-1 cursor-pointer",
+                  "flex flex-col items-center justify-center py-2.5 px-2 rounded-lg text-xs font-bold transition-all gap-1 cursor-pointer",
                   zoneType === "exterior"
                     ? "bg-white text-primary shadow-xs border border-slate-200 font-extrabold"
                     : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60",
@@ -1153,26 +1158,10 @@ export default function MasterItemForm({
 
               <button
                 type="button"
-                onClick={() => handleZoneChange("comun")}
-                disabled={Boolean(editItem)}
-                className={cn(
-                  "flex flex-col items-center justify-center py-2 px-2 rounded-lg text-xs font-bold transition-all gap-1 cursor-pointer",
-                  zoneType === "comun"
-                    ? "bg-white text-primary shadow-xs border border-slate-200 font-extrabold"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60",
-                  editItem && "cursor-not-allowed opacity-80"
-                )}
-              >
-                <Zap className="w-4 h-4" />
-                <span>Salas Técnicas</span>
-              </button>
-
-              <button
-                type="button"
                 onClick={() => handleZoneChange("vertical")}
                 disabled={Boolean(editItem)}
                 className={cn(
-                  "flex flex-col items-center justify-center py-2 px-2 rounded-lg text-xs font-bold transition-all gap-1 col-span-2 sm:col-span-1 cursor-pointer",
+                  "flex flex-col items-center justify-center py-2.5 px-2 rounded-lg text-xs font-bold transition-all gap-1 cursor-pointer",
                   zoneType === "vertical"
                     ? "bg-white text-primary shadow-xs border border-slate-200 font-extrabold"
                     : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60",
@@ -1517,6 +1506,24 @@ export default function MasterItemForm({
                       );
                     })}
                   </div>
+
+                  {floorSelectionMode === "single" && (
+                    <div className="pt-2">
+                      <Label className="text-[11px] font-semibold text-slate-700">
+                        Sector / Recinto en este piso (Opcional):
+                      </Label>
+                      <Input
+                        value={form.departments || ""}
+                        onChange={(e) => updateFormField("departments", e.target.value)}
+                        placeholder="Ej: Pasillo, Hall de Acceso, Conserjería, Sala de Calderas, Sala de Máquinas..."
+                        className="h-8 text-xs bg-white mt-1"
+                        disabled={Boolean(editItem)}
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        Si se deja en blanco, la partida aplica a todo el piso.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1620,7 +1627,10 @@ export default function MasterItemForm({
                   {[
                     { label: "Estacionamientos", icon: "🚗" },
                     { label: "Bodegas", icon: "📦" },
-                    { label: "Salas Técnicas", icon: "⚡" },
+                    { label: "Sala de Bombas", icon: "💧" },
+                    { label: "Sala Eléctrica (TGBT)", icon: "⚡" },
+                    { label: "Grupo Electrógeno", icon: "🔋" },
+                    { label: "Sala de Basuras", icon: "🗑️" },
                     { label: "General", icon: "🏢" },
                   ].map((sec) => {
                     const isSelected = !isCustomSubSector && selectedSubSector === sec.label;
@@ -1648,28 +1658,38 @@ export default function MasterItemForm({
                       </button>
                     );
                   })}
-                </div>
 
-                {!editItem && (
-                  <div className="mt-2.5">
+                  {!editItem && (
                     <button
                       type="button"
-                      onClick={() => setIsCustomSubSector(!isCustomSubSector)}
+                      onClick={() => {
+                        setIsCustomSubSector(!isCustomSubSector);
+                        if (!isCustomSubSector) setCustomSubSector("");
+                      }}
                       className={cn(
-                        "text-xs font-semibold text-slate-500 hover:text-slate-800 underline cursor-pointer",
-                        isCustomSubSector && "text-blue-600 font-bold"
+                        "flex items-center gap-1.5 p-2.5 rounded-lg border text-left text-xs font-semibold transition-all cursor-pointer border-dashed",
+                        isCustomSubSector
+                          ? "bg-primary/5 text-primary border-primary font-bold"
+                          : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
                       )}
                     >
-                      {isCustomSubSector ? "✕ Usar sectores estándar" : "+ ¿Otro recinto? (ej: Sala de Bombas, Bicicleteros...)"}
+                      <Plus className="w-3.5 h-3.5 shrink-0" />
+                      <span>{isCustomSubSector ? "Recinto especial" : "Otro recinto..."}</span>
                     </button>
-                    {isCustomSubSector && (
-                      <Input
-                        value={customSubSector}
-                        onChange={(e) => setCustomSubSector(e.target.value)}
-                        placeholder="Ej: Sala de Bombas de Achique"
-                        className="h-8 text-xs bg-white mt-1.5"
-                      />
-                    )}
+                  )}
+                </div>
+
+                {isCustomSubSector && !editItem && (
+                  <div className="pt-2">
+                    <Label className="text-[11px] font-semibold text-slate-700">
+                      Nombre del recinto especial en este nivel de subterráneo:
+                    </Label>
+                    <Input
+                      value={customSubSector}
+                      onChange={(e) => setCustomSubSector(e.target.value)}
+                      placeholder="Ej: Sala de Tableros Secundarios, Bicicletero, Sala de Presurización..."
+                      className="h-8 text-xs bg-white mt-1"
+                    />
                   </div>
                 )}
               </div>
@@ -1747,78 +1767,7 @@ export default function MasterItemForm({
             </div>
           )}
 
-          {/* Zone 4: SALAS TÉCNICAS / COMUNES */}
-          {zoneType === "comun" && (
-            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
-              <div>
-                <Label className="text-xs font-bold text-slate-800">
-                  Sala Técnica o Área Común *
-                </Label>
-                <p className="text-[11px] text-muted-foreground">
-                  Selecciona la sala técnica o espacio común donde se ejecutarán las instalaciones.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {projectAreasComunes.map((com) => {
-                  const isSelected = !isCustomAreaComun && selectedAreaComun === com;
-                  return (
-                    <button
-                      key={com}
-                      type="button"
-                      onClick={() => {
-                        if (editItem) return;
-                        setIsCustomAreaComun(false);
-                        setSelectedAreaComun(com);
-                      }}
-                      disabled={Boolean(editItem)}
-                      className={cn(
-                        "flex items-center gap-2.5 p-2.5 rounded-lg border text-left text-xs font-semibold transition-all cursor-pointer",
-                        isSelected
-                          ? "bg-primary text-primary-foreground border-primary shadow-xs font-bold"
-                          : "bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50",
-                        editItem && "cursor-not-allowed opacity-80"
-                      )}
-                    >
-                      <Zap className={cn("w-4 h-4 shrink-0", isSelected ? "text-primary-foreground" : "text-slate-400")} />
-                      <span className="truncate">{com}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 ml-auto shrink-0" />}
-                    </button>
-                  );
-                })}
-
-                {!editItem && (
-                  <button
-                    type="button"
-                    onClick={() => setIsCustomAreaComun(true)}
-                    className={cn(
-                      "flex items-center gap-2 p-2.5 rounded-lg border text-left text-xs font-semibold transition-all border-dashed cursor-pointer",
-                      isCustomAreaComun
-                        ? "bg-primary/5 text-primary border-primary font-bold"
-                        : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50"
-                    )}
-                  >
-                    <Plus className="w-3.5 h-3.5 shrink-0" />
-                    <span>Otra sala o espacio técnico...</span>
-                  </button>
-                )}
-              </div>
-
-              {isCustomAreaComun && !editItem && (
-                <div className="pt-2">
-                  <Label className="text-xs">Nombre personalizado de sala técnica</Label>
-                  <Input
-                    value={customAreaComun}
-                    onChange={(e) => setCustomAreaComun(e.target.value)}
-                    placeholder="Ej: Sala de Tableros Subterráneo 2"
-                    className="h-8 text-xs bg-white mt-1"
-                  />
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Zone 5: VERTICALES */}
+          {/* Zone 4: VERTICALES */}
           {zoneType === "vertical" && (
             <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
               {towerOnlyOptions.length > 1 && (
