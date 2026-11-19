@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/AuthContext";
 import { usePermissions } from "@/lib/PermissionsContext";
@@ -15,6 +15,10 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Eye,
+  Layers,
+  CheckCircle2,
   Users,
   UserCheck,
   Calendar,
@@ -150,7 +154,7 @@ function getWeekDays(baseDate) {
   return days;
 }
 
-function ProgramFloorsDisplay({ floor }) {
+function ProgramFloorsDisplay({ floor, onExpand, isExpanded, completedCount, totalCount }) {
   const floors = getFloorList(floor);
   if (floors.length === 0) return null;
   if (floors.length === 1) {
@@ -163,26 +167,63 @@ function ProgramFloorsDisplay({ floor }) {
   const visible = floors.slice(0, 4);
   const remaining = floors.length - visible.length;
   return (
-    <div className="flex items-center gap-1 flex-wrap" title={floors.join(", ")}>
-      {visible.map((f) => (
-        <span
-          key={f}
-          className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-foreground/80 shrink-0"
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="flex items-center gap-1 flex-wrap" title={floors.join(", ")}>
+        {visible.map((f) => (
+          <span
+            key={f}
+            className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-foreground/80 shrink-0"
+          >
+            {f}
+          </span>
+        ))}
+        {remaining > 0 && (
+          <Badge variant="secondary" className="px-1.5 py-0 text-[10px] h-4">
+            +{remaining}
+          </Badge>
+        )}
+      </div>
+
+      {onExpand && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onExpand();
+          }}
+          className={cn(
+            "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold border transition-all cursor-pointer shadow-3xs",
+            isExpanded
+              ? "bg-blue-900 text-white border-blue-900"
+              : "bg-blue-50 text-blue-900 border-blue-200 hover:bg-blue-100 hover:border-blue-300"
+          )}
+          title={isExpanded ? "Ocultar desglose de pisos" : "Ver qué pisos se han avanzado"}
         >
-          {f}
-        </span>
-      ))}
-      {remaining > 0 && (
-        <Badge variant="secondary" className="px-1.5 py-0 text-[10px] h-4">
-          +{remaining}
-        </Badge>
+          <Layers className="w-2.5 h-2.5" />
+          <span>{completedCount}/{totalCount} listos</span>
+          {isExpanded ? <ChevronDown className="w-2.5 h-2.5" /> : <ChevronRight className="w-2.5 h-2.5" />}
+        </button>
       )}
     </div>
   );
 }
 
 export default function Program() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [expandedFloors, setExpandedFloors] = useState(new Set());
+
+  const toggleExpandFloors = (itemId) => {
+    setExpandedFloors((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  };
   const { user } = useAuth();
   const { isAdmin, hasAccessToProject, userRole } = usePermissions();
   const { selectedProject, setSelectedProject } = useProjectFilter();
@@ -1157,35 +1198,90 @@ export default function Program() {
                     ? front.crew
                     : [{ isPlaceholder: true, name: "Sin personas asignadas aún", role: "", task: front.scopeDisplay || front.floor || cleanTitle }];
 
+                  // Obtener desglose de pisos para actividades de múltiples pisos
+                  const childItems = accessibleMasterItems.filter((m) => Number(m.parent_id) === Number(front.id));
+                  const rawFloorNames = getFloorList(front.floor);
+                  const multiFloors = (childItems.length > 0 ? childItems : rawFloorNames.map((name) => ({ floor: name, planned_qty: 100, executed_qty: 0, status: "pendiente" })))
+                    .map((child) => {
+                      const floorName = child.floor;
+                      const planned = Number(child.planned_qty || 100);
+                      const executed = Number(child.executed_qty || 0);
+                      const fPct = planned > 0 ? Math.min(Math.round((executed / planned) * 100), 100) : 0;
+                      const isDone = fPct >= 100 || child.status === "completado";
+                      
+                      const hasLogThisWeek = dailyLogs.some((l) => {
+                        const matchItem = child.id ? Number(l.master_item_id) === Number(child.id) : (Number(l.master_item_id) === Number(front.id) && l.floor === floorName);
+                        const inDateRange = l.date && l.date >= weekStart && l.date <= weekEnd;
+                        return matchItem && inDateRange && Number(l.executed_today || 0) > 0;
+                      });
+
+                      return {
+                        ...child,
+                        floorName,
+                        fPct,
+                        isDone,
+                        hasLogThisWeek,
+                      };
+                    })
+                    .sort((a, b) => {
+                      const numA = parseInt(String(a.floorName).replace(/\D/g, "") || "0", 10);
+                      const numB = parseInt(String(b.floorName).replace(/\D/g, "") || "0", 10);
+                      return numA - numB;
+                    });
+
+                  const isExpanded = expandedFloors.has(front.id);
+                  const completedCount = multiFloors.filter((f) => f.isDone).length;
+                  const totalCount = multiFloors.length;
+                  const weekAdvancedCount = multiFloors.filter((f) => f.hasLogThisWeek).length;
+
                   return (
                     <React.Fragment key={front.id}>
                       {/* FILA DE ENCABEZADO DE ACTIVIDAD */}
                       <tr className="bg-slate-100/95 hover:bg-slate-200/80 border-t-2 border-b border-slate-300 font-bold text-slate-900 divide-x divide-slate-300 transition-colors">
                         <td colSpan={4} className="py-2.5 px-3">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "text-[10px] font-black h-4 px-1.5 py-0 uppercase tracking-wider shrink-0",
-                                catInfo.color
-                              )}
-                            >
-                              {catInfo.code}
-                            </Badge>
-                            <Link
-                              to={`/item/${front.id}`}
-                              state={{ from: "/programa" }}
-                              className="font-extrabold uppercase tracking-tight text-slate-950 text-xs hover:text-blue-900 hover:underline transition-colors"
-                              title={`Ver detalle de ${cleanTitle}`}
-                            >
-                              {cleanTitle}
-                            </Link>
-                            {front.tower && (
-                              <Badge variant="outline" className="bg-white text-slate-700 text-[10px] h-4 py-0 font-bold shrink-0">
-                                {front.tower}
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "text-[10px] font-black h-4 px-1.5 py-0 uppercase tracking-wider shrink-0",
+                                  catInfo.color
+                                )}
+                              >
+                                {catInfo.code}
                               </Badge>
-                            )}
-                            <ProgramFloorsDisplay floor={front.scopeDisplay || front.floor} />
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/item/${front.id}`, { state: { from: "/programa" } })}
+                                className="font-extrabold uppercase tracking-tight text-slate-950 text-xs hover:text-blue-900 hover:underline transition-colors text-left cursor-pointer"
+                                title={`Ver detalle completo de ${cleanTitle}`}
+                              >
+                                {cleanTitle}
+                              </button>
+                              {front.tower && (
+                                <Badge variant="outline" className="bg-white text-slate-700 text-[10px] h-4 py-0 font-bold shrink-0">
+                                  {front.tower}
+                                </Badge>
+                              )}
+                              <ProgramFloorsDisplay
+                                floor={front.scopeDisplay || front.floor}
+                                onExpand={multiFloors.length > 1 ? () => toggleExpandFloors(front.id) : null}
+                                isExpanded={isExpanded}
+                                completedCount={completedCount}
+                                totalCount={totalCount}
+                              />
+                            </div>
+
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => navigate(`/item/${front.id}`, { state: { from: "/programa" } })}
+                              className="h-6 px-2 text-[10px] font-bold text-slate-700 bg-white/90 hover:bg-white hover:text-blue-900 border border-slate-300 shadow-3xs rounded-md gap-1 shrink-0 ml-auto cursor-pointer"
+                              title="Abrir ficha y reportes de la actividad"
+                            >
+                              <Eye className="w-3 h-3 text-slate-600" />
+                              <span>Ver Detalle</span>
+                            </Button>
                           </div>
                         </td>
 
@@ -1264,6 +1360,91 @@ export default function Program() {
                           </div>
                         </td>
                       </tr>
+
+                      {/* SUB-PANEL DESGLOSE DE PISOS (SI ESTÁ EXPANDIDO) */}
+                      {isExpanded && multiFloors.length > 1 && (
+                        <tr className="bg-blue-50/20 border-b border-blue-200/60">
+                          <td colSpan={7} className="p-3 pl-6 pr-4">
+                            <div className="bg-white rounded-xl border border-blue-200/90 shadow-2xs overflow-hidden">
+                              <div className="bg-slate-50 px-3.5 py-2 border-b border-slate-200 flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-2">
+                                  <Layers className="w-3.5 h-3.5 text-blue-700" />
+                                  <span className="font-bold text-slate-800">
+                                    Desglose de Pisos — {cleanTitle} ({front.tower || "Torre"})
+                                  </span>
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                                    {completedCount} de {totalCount} pisos listos ({totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0}%)
+                                  </span>
+                                </div>
+                                <span className="text-[11px] font-semibold text-slate-600">
+                                  {weekAdvancedCount > 0 ? (
+                                    <span className="text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                      🟢 {weekAdvancedCount} {weekAdvancedCount === 1 ? "piso avanzado" : "pisos avanzados"} en esta semana
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400">Sin avances registrados en esta semana</span>
+                                  )}
+                                </span>
+                              </div>
+
+                              <div className="divide-y divide-slate-100 text-xs">
+                                {multiFloors.map((fItem) => (
+                                  <div
+                                    key={fItem.floorName}
+                                    className="p-2.5 flex items-center justify-between hover:bg-slate-50/80 transition-colors gap-3 flex-wrap"
+                                  >
+                                    <div className="flex items-center gap-2 min-w-[160px]">
+                                      <span className="font-bold text-slate-900 text-xs">
+                                        {fItem.floorName}
+                                      </span>
+                                      <span
+                                        className={cn(
+                                          "text-[10px] font-bold px-1.5 py-0.2 rounded-full uppercase tracking-wider",
+                                          fItem.isDone
+                                            ? "bg-emerald-100 text-emerald-800"
+                                            : fItem.fPct > 0
+                                            ? "bg-blue-100 text-blue-800"
+                                            : "bg-slate-100 text-slate-600"
+                                        )}
+                                      >
+                                        {fItem.isDone ? "Listo" : fItem.fPct > 0 ? "En curso" : "Por iniciar"}
+                                      </span>
+                                      {fItem.hasLogThisWeek && (
+                                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded">
+                                          Avanzado esta semana
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-24 bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                                        <div
+                                          className={cn(
+                                            "h-full rounded-full transition-all duration-300",
+                                            fItem.isDone ? "bg-emerald-600" : fItem.fPct > 0 ? "bg-blue-600" : "bg-slate-300"
+                                          )}
+                                          style={{ width: `${Math.max(fItem.fPct, fItem.fPct > 0 ? 5 : 0)}%` }}
+                                        />
+                                      </div>
+                                      <span className="text-xs font-black font-mono w-10 text-right text-slate-800">
+                                        {fItem.fPct}%
+                                      </span>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => navigate(`/item/${fItem.id || front.id}`, { state: { from: "/programa" } })}
+                                        className="h-6 px-2 text-[10px] font-semibold text-slate-700 hover:text-blue-900 cursor-pointer"
+                                      >
+                                        Ver Piso →
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
 
                       {/* FILAS DE TRABAJADORES ASIGNADOS */}
                       {crewRows.map((worker, idx) => {
