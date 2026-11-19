@@ -338,7 +338,11 @@ export default function Program() {
 
   const floorOptions = useMemo(() => {
     const set = new Set();
-    rawFronts.forEach((f) => f.floor && set.add(f.floor));
+    rawFronts.forEach((f) => {
+      if (f.floor) {
+        getFloorList(f.floor).forEach((fl) => set.add(fl));
+      }
+    });
     return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }, [rawFronts]);
 
@@ -572,7 +576,7 @@ export default function Program() {
 
       // 4. Filtro Torre y Piso
       if (towerFilter && front.tower !== towerFilter) return false;
-      if (floorFilter && front.floor !== floorFilter) return false;
+      if (floorFilter && !getFloorList(front.floor).includes(floorFilter) && front.floor !== floorFilter) return false;
 
       // 5. Búsqueda de texto libre (busca en actividad, operarios o ubicación)
       if (searchTerm.trim()) {
@@ -1147,12 +1151,14 @@ export default function Program() {
                             >
                               {catInfo.code}
                             </Badge>
-                            <span
-                              className="font-extrabold uppercase tracking-tight text-slate-950 text-xs"
-                              title={cleanTitle}
+                            <Link
+                              to={`/item/${front.id}`}
+                              state={{ from: "/programa" }}
+                              className="font-extrabold uppercase tracking-tight text-slate-950 text-xs hover:text-blue-900 hover:underline transition-colors"
+                              title={`Ver detalle de ${cleanTitle}`}
                             >
                               {cleanTitle}
-                            </span>
+                            </Link>
                             {front.tower && (
                               <Badge variant="outline" className="bg-white text-slate-700 text-[10px] h-4 py-0 font-bold shrink-0">
                                 {front.tower}

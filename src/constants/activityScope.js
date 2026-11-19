@@ -139,6 +139,14 @@ export function getScopeDisplayLabel(item, hideDepartments = false) {
       }
       return `Bodegas (${item?.floor || "Sin piso"})`;
     }
+    case SCOPE_TYPES.PISO: {
+      const rawSector = (item?.departments || "").trim();
+      const isNumeric = rawSector && rawSector.split(",").every((d) => /^\d+[a-zA-Z]?$/.test(d.trim()));
+      if (rawSector && !isNumeric) {
+        return item?.floor ? `${rawSector} (${item.floor})` : rawSector;
+      }
+      return item?.floor || "Piso";
+    }
     case SCOPE_TYPES.MULTIPLES_PISOS:
       return item?.floor || "Múltiples Pisos";
     default:
