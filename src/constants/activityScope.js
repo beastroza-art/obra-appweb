@@ -120,18 +120,25 @@ export function getScopeDisplayLabel(item, hideDepartments = false) {
     case SCOPE_TYPES.VERTICAL_TC:
     case SCOPE_TYPES.VERTICAL_CD:
       return getVerticalScopeDisplayLabel(item);
-    case SCOPE_TYPES.PASILLO:
-      if (hideDepartments) return item?.floor || "Pasillo";
-      return item?.departments ? `${item?.floor || "Pasillo"} (${item.departments})` : `Pasillo (${item?.floor || "Sin piso"})`;
+    case SCOPE_TYPES.PASILLO: {
+      const rawSector = (item?.departments || "").trim();
+      const isNumeric = rawSector && rawSector.split(",").every((d) => /^\d+[a-zA-Z]?$/.test(d.trim()));
+      if (rawSector && !isNumeric) {
+        return item?.floor ? `${rawSector} (${item.floor})` : rawSector;
+      }
+      return `Pasillo (${item?.floor || "Sin piso"})`;
+    }
     case SCOPE_TYPES.ESPACIOS_COMUNES:
-      if (hideDepartments) return item?.floor || "Espacios Comunes";
       return `Espacios Comunes (${item?.floor || "Sin piso"})`;
     case SCOPE_TYPES.SALAS_ASIGNABLES:
-      if (hideDepartments) return item?.floor || "Salas Asignables";
       return `Salas Asignables (${item?.floor || "Sin piso"})`;
-    case SCOPE_TYPES.BODEGAS:
-      if (hideDepartments) return item?.floor || "Bodegas";
+    case SCOPE_TYPES.BODEGAS: {
+      const rawSector = (item?.departments || "").trim();
+      if (rawSector && rawSector.toLowerCase() !== "bodegas" && rawSector.toLowerCase() !== "bodega") {
+        return `${rawSector} (${item?.floor || "Sin piso"})`;
+      }
       return `Bodegas (${item?.floor || "Sin piso"})`;
+    }
     case SCOPE_TYPES.MULTIPLES_PISOS:
       return item?.floor || "Múltiples Pisos";
     default:

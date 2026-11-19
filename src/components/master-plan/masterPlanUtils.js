@@ -117,12 +117,17 @@ export function buildRowsForFloors(items) {
       }];
     }
 
-    return floors.map((floor, index) => ({
-      ...item,
-      displayFloor: floor,
-      displayRowId: `${item.id}-${index}`,
-      isPrimaryFloorRow: index === 0,
-    }));
+    return floors.map((floor, index) => {
+      const rawSector = (item.departments || "").trim();
+      const isNumericSector = rawSector && rawSector.split(",").every((d) => /^\d+[a-zA-Z]?$/.test(d.trim()));
+      const label = rawSector && !isNumericSector ? `${rawSector} (${floor})` : floor;
+      return {
+        ...item,
+        displayFloor: label,
+        displayRowId: `${item.id}-${index}`,
+        isPrimaryFloorRow: index === 0,
+      };
+    });
   });
 }
 
