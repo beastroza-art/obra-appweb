@@ -670,7 +670,11 @@ export default function Activities() {
               </Button>
               <Button
                 type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending}
+                disabled={createMutation.isPending || updateMutation.isPending || !formData.name?.trim() || !formData.type}
+                className={cn(
+                  (createMutation.isPending || updateMutation.isPending || !formData.name?.trim() || !formData.type) &&
+                    "opacity-50 cursor-not-allowed"
+                )}
               >
                 {createMutation.isPending || updateMutation.isPending
                   ? "Guardando..."

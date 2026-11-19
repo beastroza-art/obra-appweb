@@ -55,7 +55,7 @@ const SERVER_URL = (
     : (import.meta.env.VITE_API_URL || "http://localhost:3001/api")
 ).replace(/\/api\/?$/, "");
 
-const REQUIRE_PHOTO = false;
+const REQUIRE_PHOTO = true;
 const REQUIRE_SIGNATURE = false;
 const REQUIRE_CAPATAZ = false;
 
@@ -1456,7 +1456,15 @@ export default function DailyLogForm({
       const hasProgress = (fd.target_reached !== "" && fd.target_reached !== undefined) || floorExecVal > 0;
       if (!hasProgress) return false;
     }
+    if (!fd.observations?.trim()) return false;
     if (fd.has_restriction && !fd.restriction_detail?.trim()) return false;
+    const rawCrew = buildCrewWorkers(fd.workers || []);
+    const validCrew = rawCrew.filter((w) => w.name?.trim() && w.role?.trim());
+    if (validCrew.length === 0) return false;
+    const hasIncomplete = (fd.workers || []).some(
+      (w) => (w.name?.trim() && !w.role?.trim()) || (!w.name?.trim() && w.role?.trim())
+    );
+    if (hasIncomplete) return false;
     if (REQUIRE_PHOTO && (!fd.photos || fd.photos.length === 0)) return false;
     const sig = fd.signatureImage || signatureImage;
     if (REQUIRE_SIGNATURE && !sig) return false;
@@ -1822,6 +1830,13 @@ export default function DailyLogForm({
     }
   };
 
+  const validCrewWorkers = buildCrewWorkers(workers || []).filter((w) => w.name?.trim() && w.role?.trim());
+  const hasIncompleteWorkers = (workers || []).some(
+    (w) => (w.name?.trim() && !w.role?.trim()) || (!w.name?.trim() && w.role?.trim())
+  );
+  const hasDuplicateCrew = new Set(validCrewWorkers.map((w) => w.name.trim().toLowerCase())).size !== validCrewWorkers.length;
+  const hasReportPhotos = (displayedPhotos && displayedPhotos.length > 0) || (photos && photos.length > 0) || (initialLogData?.photos && initialLogData.photos.length > 0);
+
   const isSaveDisabled = isMultiFloor
     ? !form.date ||
       selectedFloors.length === 0 ||
@@ -1832,12 +1847,15 @@ export default function DailyLogForm({
       (!isZeroProgress &&
         (!form.executed_today || Number(form.executed_today) <= 0) &&
         (form.target_reached === "" || form.target_reached === undefined)) ||
+      !form.observations?.trim() ||
+      validCrewWorkers.length === 0 ||
+      hasIncompleteWorkers ||
+      hasDuplicateCrew ||
       (form.has_restriction && !form.restriction_detail?.trim()) ||
-      hasInvalidWorker ||
+      (REQUIRE_PHOTO && !hasReportPhotos) ||
+      (REQUIRE_SIGNATURE && !signatureImage) ||
       saving ||
-      uploadingPhotos ||
-      (REQUIRE_PHOTO && !initialLogData && photos.length === 0) ||
-      (REQUIRE_SIGNATURE && !signatureImage);
+      uploadingPhotos;
 
   const handleUserCancel = () => {
     try {
@@ -2931,7 +2949,11 @@ export default function DailyLogForm({
             Cancelar
           </Button>
 
-          <Button onClick={handleSave} disabled={saving || uploadingPhotos}>
+          <Button
+            onClick={handleSave}
+            disabled={isSaveDisabled}
+            className={cn(isSaveDisabled && "opacity-50 cursor-not-allowed")}
+          >
             {saving
               ? "Guardando..."
               : uploadingPhotos

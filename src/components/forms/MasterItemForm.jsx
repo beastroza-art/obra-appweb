@@ -867,6 +867,9 @@ export default function MasterItemForm({
       if (!finalSub) {
         return "Debe seleccionar o ingresar un nivel de subterráneo.";
       }
+      if (isCustomSubSector && !customSubSector.trim()) {
+        return "Debe ingresar el nombre del recinto personalizado.";
+      }
     } else if (zoneType === "exterior") {
       const finalExt = isCustomExterior ? customExterior.trim() : selectedExterior;
       if (!finalExt) {
@@ -893,6 +896,10 @@ export default function MasterItemForm({
 
     if (!form.end_date) {
       return "Debe ingresar la fecha de término.";
+    }
+
+    if (form.start_date && form.end_date && form.start_date > form.end_date) {
+      return "La fecha de inicio no puede ser posterior a la fecha de término.";
     }
 
     const validMembers = crewMembers.filter((member) => member.name.trim() && member.role.trim());
@@ -2292,7 +2299,11 @@ export default function MasterItemForm({
             Cancelar
           </Button>
 
-          <Button onClick={handleSave} disabled={saving}>
+          <Button
+            onClick={handleSave}
+            disabled={isFormInvalid}
+            className={cn(isFormInvalid && "opacity-50 cursor-not-allowed")}
+          >
             {saving ? "Guardando..." : editItem ? "Actualizar" : "Crear Ítem"}
           </Button>
 

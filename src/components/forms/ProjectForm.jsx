@@ -774,6 +774,18 @@ export default function ProjectForm({
     return hasCub ? ["Cubierta", ...numericFloors] : numericFloors;
   }, [activeTower]);
 
+  const isStep1Invalid =
+    !form.name?.trim() ||
+    !form.client?.trim() ||
+    !form.address?.trim() ||
+    !form.supervisor ||
+    !form.capataz ||
+    !form.start_date ||
+    !form.end_date ||
+    form.start_date > form.end_date;
+
+  const isStep2Invalid = towers.length === 0 || towers.some((t) => !t.name?.trim());
+
   return (
     <Dialog open={open} onOpenChange={(val) => !saving && !val && onClose()}>
       <DialogContent className="flex max-h-[92vh] flex-col overflow-hidden p-0 sm:max-w-4xl bg-white shadow-2xl border border-slate-200/90 rounded-3xl">
@@ -1788,7 +1800,11 @@ export default function ProjectForm({
               <Button
                 type="button"
                 onClick={handleNextToStep2}
-                className="bg-gradient-to-r from-orange-500 via-orange-600 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white gap-2 text-xs sm:text-sm h-10 px-5 rounded-xl font-bold shadow-md shadow-orange-500/25 hover:shadow-lg hover:shadow-orange-500/30 transition-all cursor-pointer active:scale-[0.98]"
+                disabled={isStep1Invalid || saving}
+                className={cn(
+                  "bg-gradient-to-r from-orange-500 via-orange-600 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white gap-2 text-xs sm:text-sm h-10 px-5 rounded-xl font-bold shadow-md shadow-orange-500/25 hover:shadow-lg hover:shadow-orange-500/30 transition-all cursor-pointer active:scale-[0.98]",
+                  (isStep1Invalid || saving) && "opacity-50 cursor-not-allowed"
+                )}
               >
                 <span>Siguiente: Estructura de la Obra</span>
                 <ArrowRight className="h-4 w-4" />
@@ -1809,8 +1825,11 @@ export default function ProjectForm({
                 <Button
                   type="button"
                   onClick={handleSaveProject}
-                  disabled={saving}
-                  className="bg-gradient-to-r from-orange-500 via-orange-600 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white gap-2 text-xs sm:text-sm h-10 px-6 rounded-xl font-bold shadow-md shadow-orange-500/25 hover:shadow-lg hover:shadow-orange-500/30 transition-all cursor-pointer active:scale-[0.98]"
+                  disabled={isStep2Invalid || saving}
+                  className={cn(
+                    "bg-gradient-to-r from-orange-500 via-orange-600 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white gap-2 text-xs sm:text-sm h-10 px-6 rounded-xl font-bold shadow-md shadow-orange-500/25 hover:shadow-lg hover:shadow-orange-500/30 transition-all cursor-pointer active:scale-[0.98]",
+                    (isStep2Invalid || saving) && "opacity-50 cursor-not-allowed"
+                  )}
                 >
                   <Check className="h-4 w-4" />
                   <span>{saving ? "Guardando..." : isEditing ? "Guardar Cambios" : "Crear y Configurar Obra"}</span>
