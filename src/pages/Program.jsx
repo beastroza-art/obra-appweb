@@ -150,6 +150,37 @@ function getWeekDays(baseDate) {
   return days;
 }
 
+function ProgramFloorsDisplay({ floor }) {
+  const floors = getFloorList(floor);
+  if (floors.length === 0) return null;
+  if (floors.length === 1) {
+    return (
+      <Badge variant="outline" className="bg-blue-50 text-blue-900 border-blue-200 text-[10px] h-4 py-0 font-bold shrink-0">
+        {floors[0]}
+      </Badge>
+    );
+  }
+  const visible = floors.slice(0, 4);
+  const remaining = floors.length - visible.length;
+  return (
+    <div className="flex items-center gap-1 flex-wrap" title={floors.join(", ")}>
+      {visible.map((f) => (
+        <span
+          key={f}
+          className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-foreground/80 shrink-0"
+        >
+          {f}
+        </span>
+      ))}
+      {remaining > 0 && (
+        <Badge variant="secondary" className="px-1.5 py-0 text-[10px] h-4">
+          +{remaining}
+        </Badge>
+      )}
+    </div>
+  );
+}
+
 export default function Program() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -201,16 +232,6 @@ export default function Program() {
     return masterItems.filter((i) => hasAccessToProject(i.project));
   }, [masterItems, isAdmin, hasAccessToProject]);
 
-  // Identificar IDs de actividades que actúan como padre agrupador (ej. múltiples pisos que ya tienen hijos desglosados)
-  const parentIdsWithChildren = useMemo(() => {
-    return new Set(
-      accessibleMasterItems
-        .map((item) => item.parent_id)
-        .filter((pid) => pid !== null && pid !== undefined && pid !== "")
-        .map((pid) => String(pid))
-    );
-  }, [accessibleMasterItems]);
-
   // Conteo oficial de actividades del Plan Maestro por obra (idéntico al número oficial que muestra Plan Maestro)
   const projectItemCounts = useMemo(() => {
     const counts = {};
@@ -233,13 +254,13 @@ export default function Program() {
     return match || accessibleProjects[0] || null;
   }, [accessibleProjects, selectedProject, projectItemCounts]);
 
-  // Actividades / partidas operativas de la obra activa (excluyendo al padre agrupador cuando ya están los hijos)
+  // Actividades / partidas operativas de la obra activa (mostrar ítems principales, no desgloses de pisos duplicados)
   const rawFronts = useMemo(() => {
     if (!activeProject?.name) return [];
     return accessibleMasterItems.filter(
-      (i) => i.project === activeProject.name && !parentIdsWithChildren.has(String(i.id))
+      (i) => i.project === activeProject.name && !i.parent_id
     );
-  }, [accessibleMasterItems, activeProject, parentIdsWithChildren]);
+  }, [accessibleMasterItems, activeProject]);
 
   // Detectar la fecha más representativa con actividades para la obra activa
   const latestProjectActivityDate = useMemo(() => {
@@ -1164,15 +1185,7 @@ export default function Program() {
                                 {front.tower}
                               </Badge>
                             )}
-                            {front.scopeDisplay ? (
-                              <Badge variant="outline" className="bg-blue-50 text-blue-900 border-blue-200 text-[10px] h-4 py-0 font-bold shrink-0">
-                                {front.scopeDisplay}
-                              </Badge>
-                            ) : front.floor ? (
-                              <Badge variant="outline" className="bg-white text-slate-700 text-[10px] h-4 py-0 font-bold shrink-0">
-                                {front.floor}
-                              </Badge>
-                            ) : null}
+                            <ProgramFloorsDisplay floor={front.scopeDisplay || front.floor} />
                           </div>
                         </td>
 
@@ -1307,7 +1320,7 @@ export default function Program() {
 
                             <td className="py-1.5 px-3 text-slate-600">
                               <span className="font-mono text-[11px]">
-                                {worker.task || front.scopeDisplay || front.floor || cleanTitle}
+                                {worker.task || (getFloorList(front.scopeDisplay || front.floor).length > 3 ? `${getFloorList(front.scopeDisplay || front.floor).length} pisos` : front.scopeDisplay || front.floor || cleanTitle)}
                               </span>
                             </td>
 

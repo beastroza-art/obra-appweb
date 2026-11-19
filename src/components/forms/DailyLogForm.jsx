@@ -1189,18 +1189,20 @@ export default function DailyLogForm({
       const currentTower = normTow ? `${normTow} - ` : "";
       const rawSector = isMultiFloor && activeFloor ? activeFloor : (resolvedMasterItem?.floor || "Sector General");
       const currentSector = rawSector.replace(/^Pasillo\s*\((.*?)\)$/i, "$1");
-      let currentDptos = "";
+      let currentLoc = "";
       if (resolvedMasterItem?.departments) {
         const rawDeps = resolvedMasterItem.departments.trim();
         const isNumericDeps = rawDeps.split(",").every((d) => /^\d+[a-zA-Z]?$/.test(d.trim()));
-        if (isNumericDeps) {
-          const count = rawDeps.split(",").length;
-          currentDptos = count > 3 ? ` (${count} dptos)` : ` (Dptos: ${rawDeps})`;
+        if (!isNumericDeps) {
+          currentLoc = `${currentTower}${rawDeps} (${currentSector})`;
         } else {
-          currentDptos = ` (${rawDeps})`;
+          const count = rawDeps.split(",").length;
+          const deptoSuffix = count > 3 ? ` (${count} dptos)` : ` (${rawDeps})`;
+          currentLoc = `${currentTower}${currentSector}${deptoSuffix}`;
         }
+      } else {
+        currentLoc = `${currentTower}${currentSector}`;
       }
-      const currentLoc = `${currentTower}${currentSector}${currentDptos}`;
 
       const currentAuthor = form.capataz_name || form.supervisor || userName || "Capataz en Faena";
       const currentProjectName = project?.name || resolvedMasterItem?.project || "Obra";
@@ -2708,11 +2710,7 @@ export default function DailyLogForm({
                     <Label className="flex items-center gap-1.5 text-xs font-semibold">
                       <Camera className="h-3.5 w-3.5" />
                       Fotos del reporte {isMultiFloor ? `(${activeFloor})` : ""}{" "}
-                      {REQUIRE_PHOTO ? (
-                        <span className="text-destructive">*</span>
-                      ) : (
-                        <span className="text-muted-foreground">(opcional)</span>
-                      )}
+                      <span className="text-destructive font-bold">*</span>
                     </Label>
                     <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 font-medium">
                       🛡️ Sello legal indeleble
