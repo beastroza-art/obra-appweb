@@ -3,7 +3,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { FileText, Plus, ChevronDown, ChevronUp, Trash2, Pencil } from 'lucide-react';
+import { FileText, Plus, ChevronDown, ChevronUp, Trash2, Pencil, Users } from 'lucide-react';
 import { usePermissions } from '@/lib/PermissionsContext';
 
 export default function DailyLogTable({ logs, onAddLog, onEditLog, onDeleteLog }) {
@@ -108,37 +108,49 @@ export default function DailyLogTable({ logs, onAddLog, onEditLog, onDeleteLog }
                     </TableRow>
 
                     {expandedLog === log.id && log.crew_workers?.length > 0 && (
-                      <TableRow className="bg-muted/20">
-                        <TableCell colSpan={6} className="p-4">
-                        <div className="space-y-2">
-                          <p className="text-xs font-semibold text-muted-foreground mb-3">
-                            Integrantes presentes en faena
-                          </p>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-[11px]">
-                              <thead>
-                                <tr className="border-b bg-background">
-                                  <th className="text-left px-2 py-1.5 font-semibold text-slate-700">Nombre</th>
-                                  <th className="text-left px-2 py-1.5 font-semibold text-slate-700">Cargo / Rol</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {log.crew_workers.map((w, idx) => (
-                                  <tr key={idx} className="border-b hover:bg-muted/50">
-                                    <td className="px-2 py-1.5 font-medium text-slate-800">{w.name}</td>
-                                    <td className="px-2 py-1.5 text-muted-foreground">{w.role || '—'}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                      <TableRow className="bg-slate-50/60 hover:bg-slate-50/60">
+                        <TableCell colSpan={6} className="p-3">
+                          <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-2xs">
+                            <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+                              <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                                <Users className="w-3.5 h-3.5 text-slate-500" />
+                                <span>
+                                  Personal presente en faena ({log.crew_workers.length} {log.crew_workers.length === 1 ? 'integrante' : 'integrantes'})
+                                </span>
+                              </div>
+                              {log.crew_name && (
+                                <Badge variant="outline" className="text-[10px] bg-slate-50 text-slate-600 font-medium">
+                                  Cuadrilla: {log.crew_name}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                              {log.crew_workers.map((w, idx) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-center gap-2.5 rounded-md border border-slate-200/80 bg-slate-50/60 p-2 transition-colors hover:bg-slate-50 hover:border-slate-300"
+                                >
+                                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs font-bold uppercase shadow-2xs">
+                                    {(w.name || '?').charAt(0)}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate text-xs font-semibold text-slate-800">
+                                      {w.name}
+                                    </p>
+                                    <p className="truncate text-[10px] text-muted-foreground font-medium">
+                                      {w.role || 'Operario'}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </React.Fragment>
-              );
-            })}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

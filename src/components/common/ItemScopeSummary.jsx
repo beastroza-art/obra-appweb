@@ -66,7 +66,7 @@ export default function ItemScopeSummary({ item, className, hideActivity = false
               </button>
             </PopoverTrigger>
             <PopoverContent align="start" className="w-[min(92vw,400px)] p-3 z-50">
-              <div className="mb-2 flex items-center justify-between border-b pb-2">
+              <div className="mb-2.5 flex items-center justify-between border-b pb-2">
                 <span className="text-xs font-bold text-slate-800">
                   Pisos Asignados ({floorSummary.count} niveles)
                 </span>
@@ -74,11 +74,11 @@ export default function ItemScopeSummary({ item, className, hideActivity = false
                   {item.tower}
                 </span>
               </div>
-              <div className="flex max-h-56 flex-wrap gap-1.5 overflow-y-auto pr-1">
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-56 overflow-y-auto pr-1">
                 {floorSummary.floors.map((fl) => (
                   <span
                     key={fl}
-                    className="rounded bg-slate-100 border border-slate-200 px-2 py-0.5 text-xs font-medium text-slate-800"
+                    className="flex items-center justify-center rounded border border-slate-200 bg-slate-50 py-1 px-1.5 text-xs font-medium text-slate-800 text-center shadow-2xs hover:bg-slate-100 transition-colors"
                   >
                     {fl}
                   </span>
@@ -87,7 +87,7 @@ export default function ItemScopeSummary({ item, className, hideActivity = false
             </PopoverContent>
           </Popover>
         ) : isDept && depts.length > 0 ? (
-          /* Caso B: Por Departamento interactivo con Popover */
+          /* Caso B: Por Departamento interactivo con Popover en cuadrícula ordenada */
           <Popover>
             <PopoverTrigger asChild>
               <button
@@ -99,8 +99,8 @@ export default function ItemScopeSummary({ item, className, hideActivity = false
                 <ChevronDown className="h-3 w-3 text-muted-foreground" />
               </button>
             </PopoverTrigger>
-            <PopoverContent align="start" className="w-[min(92vw,420px)] p-3 z-50">
-              <div className="mb-2 flex items-center justify-between border-b pb-2">
+            <PopoverContent align="start" className="w-[min(92vw,440px)] p-3 z-50">
+              <div className="mb-2.5 flex items-center justify-between border-b pb-2">
                 <span className="text-xs font-bold text-slate-800">
                   Departamentos ({depts.length} unidades en {item.floor})
                 </span>
@@ -108,13 +108,13 @@ export default function ItemScopeSummary({ item, className, hideActivity = false
                   {item.tower}
                 </span>
               </div>
-              <div className="flex max-h-56 flex-wrap gap-1.5 overflow-y-auto pr-1">
+              <div className="grid grid-cols-5 gap-1.5 max-h-60 overflow-y-auto pr-1">
                 {depts.map((d) => (
                   <span
                     key={d}
-                    className="rounded bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 text-xs font-semibold"
+                    className="flex items-center justify-center rounded border border-blue-200 bg-blue-50/80 py-1 px-1 text-xs font-semibold text-blue-900 text-center shadow-2xs hover:bg-blue-100 transition-colors"
                   >
-                    Depto {d}
+                    {/^\d+$/.test(d) ? `Dpto ${d}` : d}
                   </span>
                 ))}
               </div>
