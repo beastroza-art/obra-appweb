@@ -48,6 +48,9 @@ import {
   Download,
   FileText,
   ChevronDown,
+  Search,
+  UserCheck,
+  UserX,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePermissions } from '@/lib/PermissionsContext';
@@ -57,6 +60,26 @@ import {
   exportWorkersWithoutActivityPDF,
   exportWorkersWithoutActivityExcel,
 } from '@/utils/exportWorkersReports';
+
+const COMMON_CONSTRUCTION_ROLES = [
+  "Jornal",
+  "Carpintero Obra Gruesa",
+  "Carpintero Terminaciones",
+  "Enfierrador",
+  "Concretero",
+  "Trazador",
+  "Rigger",
+  "Operador Grúa",
+  "Soldador",
+  "Electricista",
+  "Gasfíter / Sanitario",
+  "Tabiquero / Yesero",
+  "Ceramista",
+  "Pintor",
+  "Maestro Mayor",
+  "Capataz",
+  "Ayudante",
+];
 
 function formatDate(value) {
   if (!value) return '—';
@@ -71,16 +94,19 @@ export default function Workers() {
   const { selectedProject, setSelectedProject } = useProjectFilter();
   const fileInputRef = useRef(null);
 
+  const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [selectedRole, setSelectedRole] = useState('all');
   const [selectedActivity, setSelectedActivity] = useState('all');
   const [filterActivityStatus, setFilterActivityStatus] = useState('all');
-  const [form, setForm] = useState({ project: '', name: '', role: '', transfer_date: '' });
+  const [filterActiveStatus, setFilterActiveStatus] = useState('all'); // 'all' | 'activos' | 'inactivos'
+
+  const [form, setForm] = useState({ project: '', name: '', role: '', transfer_date: '', active: true });
   const [formError, setFormError] = useState('');
 
   const [showEditForm, setShowEditForm] = useState(false);
   const [editWorker, setEditWorker] = useState(null);
-  const [editForm, setEditForm] = useState({ project: '', name: '', role: '', transfer_date: '' });
+  const [editForm, setEditForm] = useState({ project: '', name: '', role: '', transfer_date: '', active: true });
   const [editError, setEditError] = useState('');
 
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -118,7 +144,7 @@ export default function Workers() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projectWorkers'] });
       setShowForm(false);
-      setForm({ project: '', name: '', role: '', transfer_date: '' });
+      setForm({ project: '', name: '', role: '', transfer_date: '', active: true });
       setFormError('');
     },
     onError: (err) => setFormError(err.message || 'Error al guardar.'),
@@ -133,6 +159,12 @@ export default function Workers() {
       setEditError('');
     },
     onError: (err) => setEditError(err.message || 'Error al actualizar.'),
+  });
+
+  const toggleActiveWorker = useMutation({
+    mutationFn: (id) => api.patch(`/project-workers/${id}/toggle-active`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['projectWorkers'] }),
+    onError: (err) => alert(err.message || "Error al cambiar estado"),
   });
 
   const deleteWorker = useMutation({
@@ -150,7 +182,12 @@ export default function Workers() {
   }, [projectWorkers, selectedProject, userRole, hasAccessToProject]);
 
   const workerRoles = useMemo(() => {
-    return [...new Set(projectWorkersList.map((w) => w.role).filter(Boolean))];
+    return [...new Set(projectWorkersList.map((w) => w.role).filter(Boolean))].sort();
+  }, [projectWorkersList]);
+
+  const suggestedRoles = useMemo(() => {
+    const fromProject = projectWorkersList.map((w) => w.role).filter(Boolean);
+    return Array.from(new Set([...COMMON_CONSTRUCTION_ROLES, ...fromProject])).sort();
   }, [projectWorkersList]);
 
   const uniqueActivities = useMemo(() => {
@@ -176,18 +213,22 @@ export default function Workers() {
     return names;
   }, [dailyLogs, selectedActivity]);
 
+  // Solo trabajadores activos sin labor actual asignada
   const workersWithoutActivity = useMemo(() => {
     return projectWorkersList.filter(
-      (w) => !w.current_activity || !String(w.current_activity).trim() || String(w.current_activity).trim() === '—'
+      (w) => w.active !== 0 && (!w.current_activity || !String(w.current_activity).trim() || String(w.current_activity).trim() === '—')
     );
   }, [projectWorkersList]);
 
   const filteredWorkers = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
     return projectWorkersList.filter((w) => {
       if (selectedRole !== 'all' && w.role !== selectedRole) return false;
       if (selectedActivity !== 'all' && workersWithActivity) {
         if (!workersWithActivity.has(w.name?.trim().toLowerCase())) return false;
       }
+      if (filterActiveStatus === 'activos' && w.active === 0) return false;
+      if (filterActiveStatus === 'inactivos' && w.active !== 0) return false;
       if (filterActivityStatus === 'sin_actividad') {
         const hasAct = w.current_activity && String(w.current_activity).trim() && String(w.current_activity).trim() !== '—';
         if (hasAct) return false;
@@ -196,9 +237,14 @@ export default function Workers() {
         const hasAct = w.current_activity && String(w.current_activity).trim() && String(w.current_activity).trim() !== '—';
         if (!hasAct) return false;
       }
+      if (term) {
+        const nameMatch = (w.name || '').toLowerCase().includes(term);
+        const roleMatch = (w.role || '').toLowerCase().includes(term);
+        if (!nameMatch && !roleMatch) return false;
+      }
       return true;
     });
-  }, [projectWorkersList, selectedRole, selectedActivity, workersWithActivity, filterActivityStatus]);
+  }, [projectWorkersList, selectedRole, selectedActivity, workersWithActivity, filterActiveStatus, filterActivityStatus, searchTerm]);
 
   const allProjects = filteredProjects.map((p) => p.name);
 
@@ -238,7 +284,13 @@ export default function Workers() {
 
   const handleOpenEdit = (w) => {
     setEditWorker(w);
-    setEditForm({ project: w.project, name: w.name, role: w.role || '', transfer_date: w.transfer_date || '' });
+    setEditForm({
+      project: w.project,
+      name: w.name,
+      role: w.role || '',
+      transfer_date: w.transfer_date || '',
+      active: w.active !== 0,
+    });
     setEditError('');
     setShowEditForm(true);
   };
@@ -331,7 +383,7 @@ export default function Workers() {
     );
   }
 
-  const emptyStateColSpan = 5 + (canDelete ? 1 : 0) + ((canManagePersonal || canDelete) ? 1 : 0);
+  const emptyStateColSpan = 6 + (canDelete ? 1 : 0) + ((canManagePersonal || canDelete) ? 1 : 0);
 
   return (
     <div className="space-y-6">
@@ -402,7 +454,13 @@ export default function Workers() {
                 size="sm"
                 className="h-8 text-xs gap-1.5"
                 onClick={() => {
-                  setForm({ project: selectedProject && selectedProject !== 'all' ? selectedProject : '', name: '', role: '', transfer_date: '' });
+                  setForm({
+                    project: selectedProject && selectedProject !== 'all' ? selectedProject : '',
+                    name: '',
+                    role: '',
+                    transfer_date: '',
+                    active: true,
+                  });
                   setFormError('');
                   setShowForm(true);
                 }}
@@ -415,31 +473,77 @@ export default function Workers() {
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center flex-wrap">
-        <FilterPill
-          label="Obra"
-          value={selectedProject || 'all'}
-          options={allProjects}
-          onChange={(v) => {
-            setSelectedProject(v === 'all' ? '' : v);
-            setSelectedRole('all');
-            setSelectedActivity('all');
-            setFilterActivityStatus('all');
-            setSelectedIds(new Set());
-          }}
-        />
+      {/* Barra de Búsqueda y Filtros */}
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center justify-between flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap flex-1">
+          {/* Buscador en tiempo real */}
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              type="text"
+              placeholder="Buscar por nombre o cargo..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="h-8 pl-8 pr-7 text-xs bg-white"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs p-0.5"
+                title="Limpiar búsqueda"
+              >
+                ✕
+              </button>
+            )}
+          </div>
 
-        <FilterPill
-          label="Estado Actividad"
-          value={filterActivityStatus}
-          options={[
-            { value: 'all', label: 'Todos' },
-            { value: 'sin_actividad', label: `⚠️ Sin Actividad (${workersWithoutActivity.length})` },
-            { value: 'con_actividad', label: 'Con Actividad Asignada' },
-          ]}
-          onChange={setFilterActivityStatus}
-        />
+          <FilterPill
+            label="Obra"
+            value={selectedProject || 'all'}
+            options={allProjects}
+            onChange={(v) => {
+              setSelectedProject(v === 'all' ? '' : v);
+              setSelectedRole('all');
+              setSelectedActivity('all');
+              setFilterActivityStatus('all');
+              setFilterActiveStatus('all');
+              setSelectedIds(new Set());
+            }}
+          />
+
+          <FilterPill
+            label="Cargo"
+            value={selectedRole}
+            options={[
+              { value: 'all', label: 'Todos los cargos' },
+              ...workerRoles.map((r) => ({ value: r, label: r })),
+            ]}
+            onChange={setSelectedRole}
+          />
+
+          <FilterPill
+            label="Estado"
+            value={filterActiveStatus}
+            options={[
+              { value: 'all', label: 'Todos los estados' },
+              { value: 'activos', label: '🟢 Activos' },
+              { value: 'inactivos', label: '⚪ Inactivos / Baja' },
+            ]}
+            onChange={setFilterActiveStatus}
+          />
+
+          <FilterPill
+            label="Asignación"
+            value={filterActivityStatus}
+            options={[
+              { value: 'all', label: 'Todas las labores' },
+              { value: 'sin_actividad', label: `⚠️ Sin Actividad (${workersWithoutActivity.length})` },
+              { value: 'con_actividad', label: 'Con Actividad Asignada' },
+            ]}
+            onChange={setFilterActivityStatus}
+          />
+        </div>
       </div>
 
       <Card className="border-0 shadow-sm">
@@ -487,6 +591,7 @@ export default function Workers() {
                   <TableHead className="text-xs">Obra</TableHead>
                   <TableHead className="text-xs">Fecha de Traslado</TableHead>
                   <TableHead className="text-xs">Act. actual</TableHead>
+                  <TableHead className="text-xs">Estado</TableHead>
                   {(canManagePersonal || canDelete) && <TableHead className="text-xs text-right">Acciones</TableHead>}
                 </TableRow>
               </TableHeader>
@@ -495,7 +600,7 @@ export default function Workers() {
                 {filteredWorkers.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={emptyStateColSpan} className="text-center text-sm text-muted-foreground py-12">
-                      Sin personal registrado.
+                      {searchTerm ? 'No se encontraron personas con ese criterio de búsqueda.' : 'Sin personal registrado.'}
                     </TableCell>
                   </TableRow>
                 )}
@@ -503,7 +608,7 @@ export default function Workers() {
                 {filteredWorkers.map((w) => (
                   <TableRow
                     key={w.id}
-                    className={`hover:bg-muted/30 text-xs ${selectedIds.has(w.id) ? 'bg-muted/20' : ''}`}
+                    className={`hover:bg-muted/30 text-xs ${selectedIds.has(w.id) ? 'bg-muted/20' : ''} ${w.active === 0 ? 'opacity-70 bg-slate-50/40' : ''}`}
                   >
                     {canDelete && (
                       <TableCell>
@@ -532,6 +637,17 @@ export default function Workers() {
                         </span>
                       )}
                     </TableCell>
+                    <TableCell>
+                      {w.active === 0 ? (
+                        <Badge variant="secondary" className="bg-slate-100 text-slate-500 border border-slate-200 text-[10px] font-medium">
+                          Inactivo / Baja
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-medium">
+                          Activo
+                        </Badge>
+                      )}
+                    </TableCell>
                     {(canManagePersonal || canDelete) && (
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
@@ -539,8 +655,21 @@ export default function Workers() {
                             <Button
                               variant="ghost"
                               size="icon"
+                              className={`h-7 w-7 ${w.active === 0 ? 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50' : 'text-slate-400 hover:text-amber-700 hover:bg-amber-50'}`}
+                              onClick={() => toggleActiveWorker.mutate(w.id)}
+                              title={w.active === 0 ? "Reactivar en faena" : "Dar de baja / Marcar Inactivo"}
+                              disabled={toggleActiveWorker.isPending}
+                            >
+                              {w.active === 0 ? <UserCheck className="w-3.5 h-3.5" /> : <UserX className="w-3.5 h-3.5" />}
+                            </Button>
+                          )}
+                          {canManagePersonal && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               className="h-7 w-7 text-muted-foreground hover:text-foreground"
                               onClick={() => handleOpenEdit(w)}
+                              title="Editar persona"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </Button>
@@ -551,9 +680,10 @@ export default function Workers() {
                               size="icon"
                               className="h-7 w-7 text-red-400 hover:text-red-600"
                               onClick={() =>
-                                window.confirm(`¿Eliminar a ${w.name}?`) &&
+                                window.confirm(`¿Eliminar definitivamente a ${w.name}?`) &&
                                 deleteWorker.mutate(w.id)
                               }
+                              title="Eliminar del padrón"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </Button>
@@ -590,19 +720,59 @@ export default function Workers() {
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ej: Juan Pérez González" />
             </div>
             <div>
-              <Label className="text-xs">Cargo</Label>
-              <Input value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} placeholder="Ej: Electricista" />
+              <div className="flex items-center justify-between mb-1">
+                <Label className="text-xs">Cargo u Oficio</Label>
+                <span className="text-[10px] text-muted-foreground">Sugerencias o texto libre</span>
+              </div>
+              <Input
+                list="worker-role-suggestions"
+                value={form.role}
+                onChange={(e) => setForm({ ...form, role: e.target.value })}
+                placeholder="Ej: Electricista, Jornal, Carpintero..."
+              />
+              <datalist id="worker-role-suggestions">
+                {suggestedRoles.map((r) => (
+                  <option key={r} value={r} />
+                ))}
+              </datalist>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {["Jornal", "Carpintero", "Enfierrador", "Electricista", "Capataz"].map((quickRole) => (
+                  <button
+                    key={quickRole}
+                    type="button"
+                    onClick={() => setForm({ ...form, role: quickRole })}
+                    className="rounded bg-slate-100 hover:bg-slate-200 border border-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 transition-colors"
+                  >
+                    + {quickRole}
+                  </button>
+                ))}
+              </div>
             </div>
             <div>
               <Label className="text-xs flex items-center gap-1">
                 <CalendarDays className="w-3 h-3" />
-                Fecha de Traslado
+                Fecha de Ingreso / Traslado
               </Label>
               <Input
                 type="date"
                 value={form.transfer_date}
                 onChange={(e) => setForm({ ...form, transfer_date: e.target.value })}
               />
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">Estado Laboral</Label>
+              <Select
+                value={form.active ? "active" : "inactive"}
+                onValueChange={(v) => setForm({ ...form, active: v === "active" })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">🟢 Activo en faena</SelectItem>
+                  <SelectItem value="inactive">⚪ Inactivo / Finiquitado / Baja</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             {formError && (
               <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 p-2">
@@ -613,7 +783,7 @@ export default function Workers() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowForm(false); setFormError(''); }}>Cancelar</Button>
-            <Button onClick={() => createWorker.mutate({ ...form, active: true })} disabled={!form.project || !form.name || createWorker.isPending}>
+            <Button onClick={() => createWorker.mutate(form)} disabled={!form.project || !form.name || createWorker.isPending}>
               {createWorker.isPending ? 'Guardando...' : 'Guardar'}
             </Button>
           </DialogFooter>
@@ -641,19 +811,54 @@ export default function Workers() {
               <Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder="Ej: Juan Pérez González" />
             </div>
             <div>
-              <Label className="text-xs">Cargo</Label>
-              <Input value={editForm.role} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })} placeholder="Ej: Electricista" />
+              <div className="flex items-center justify-between mb-1">
+                <Label className="text-xs">Cargo u Oficio</Label>
+                <span className="text-[10px] text-muted-foreground">Sugerencias o texto libre</span>
+              </div>
+              <Input
+                list="worker-role-suggestions"
+                value={editForm.role}
+                onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+                placeholder="Ej: Electricista, Jornal, Carpintero..."
+              />
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {["Jornal", "Carpintero", "Enfierrador", "Electricista", "Capataz"].map((quickRole) => (
+                  <button
+                    key={quickRole}
+                    type="button"
+                    onClick={() => setEditForm({ ...editForm, role: quickRole })}
+                    className="rounded bg-slate-100 hover:bg-slate-200 border border-slate-200 px-1.5 py-0.5 text-[10px] font-medium text-slate-700 transition-colors"
+                  >
+                    + {quickRole}
+                  </button>
+                ))}
+              </div>
             </div>
             <div>
               <Label className="text-xs flex items-center gap-1">
                 <CalendarDays className="w-3 h-3" />
-                Fecha de Traslado
+                Fecha de Ingreso / Traslado
               </Label>
               <Input
                 type="date"
                 value={editForm.transfer_date}
                 onChange={(e) => setEditForm({ ...editForm, transfer_date: e.target.value })}
               />
+            </div>
+            <div>
+              <Label className="text-xs mb-1 block">Estado Laboral</Label>
+              <Select
+                value={editForm.active ? "active" : "inactive"}
+                onValueChange={(v) => setEditForm({ ...editForm, active: v === "active" })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">🟢 Activo en faena</SelectItem>
+                  <SelectItem value="inactive">⚪ Inactivo / Finiquitado / Baja</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             {editError && (
               <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 p-2">

@@ -320,7 +320,7 @@ export default function DailyLogForm({
   }, [masterItem, initialLogData, masterItems]);
 
   const currentProjectWorkers = allWorkers.filter(
-    (w) => w.project === (resolvedMasterItem?.project || initialLogData?.project)
+    (w) => w.project === (resolvedMasterItem?.project || initialLogData?.project) && w.active !== 0
   );
 
   const logWorkers = allLogs
