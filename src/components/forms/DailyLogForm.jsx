@@ -1212,9 +1212,7 @@ export default function DailyLogForm({
         if (!isNumericDeps) {
           currentLoc = `${currentTower}${rawDeps} (${currentSector})`;
         } else {
-          const count = rawDeps.split(",").length;
-          const deptoSuffix = count > 3 ? ` (${count} dptos)` : ` (${rawDeps})`;
-          currentLoc = `${currentTower}${currentSector}${deptoSuffix}`;
+          currentLoc = `${currentTower}${currentSector}`;
         }
       } else {
         currentLoc = `${currentTower}${currentSector}`;
@@ -1248,7 +1246,7 @@ export default function DailyLogForm({
         uploadedList.push({
           url: uploadedPhoto.file_url,
           file_url: uploadedPhoto.file_url,
-          description: watermarkSummary || "",
+          description: "",
           file_name: uploadedPhoto.original_name || fileToUpload.name,
           filename: uploadedPhoto.filename,
           mimetype: uploadedPhoto.mimetype,
@@ -2801,8 +2799,10 @@ export default function DailyLogForm({
                                     </span>
                                   )}
                                 </div>
-                                <span className="max-w-[220px] truncate text-[10px] text-muted-foreground" title={photo.description}>
-                                  {photo.description || "Sin descripción"}
+                                <span className="max-w-[220px] truncate text-[10px] text-muted-foreground">
+                                  {photo.description && !photo.description.startsWith("[AVANCE]") && !photo.description.startsWith("[BLOQUEO]")
+                                    ? photo.description
+                                    : "Foto con sello legal"}
                                 </span>
                               </div>
                             </div>
@@ -2830,7 +2830,7 @@ export default function DailyLogForm({
                           <Input
                             type="text"
                             placeholder="Descripción (opcional)"
-                            value={photo.description}
+                            value={photo.description && (photo.description.startsWith("[AVANCE]") || photo.description.startsWith("[BLOQUEO]")) ? "" : photo.description || ""}
                             onChange={(e) =>
                               updatePhotoDescription(index, e.target.value)
                             }
