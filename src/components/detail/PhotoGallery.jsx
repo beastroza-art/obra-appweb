@@ -102,16 +102,10 @@ function PhotoCard({ photo, onPreview, onDelete, canDelete }) {
         />
       </button>
 
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-        {photo.description && (
-          <p className="truncate text-[10px] text-white/90">{photo.description}</p>
-        )}
-      </div>
-
       {canDelete && (
         <button
           type="button"
-          className="absolute bottom-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white opacity-0 shadow-md transition-opacity group-hover:opacity-100"
+          className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white opacity-0 shadow-md transition-opacity group-hover:opacity-100"
           onClick={(e) => { e.stopPropagation(); onDelete(photo); }}
           title="Eliminar foto"
         >

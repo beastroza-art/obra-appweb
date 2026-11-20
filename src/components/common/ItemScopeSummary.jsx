@@ -21,7 +21,7 @@ export default function ItemScopeSummary({ item, className, hideActivity = false
   if (!item) return null;
 
   const scopeType = normalizeScopeTypeValue(item?.scope_type);
-  const scopeLabel = getScopeDisplayLabel(item);
+  const scopeLabel = getScopeDisplayLabel(item, true);
   const floorSummary = summarizeFloorList(item?.floor);
   const hasManyFloors =
     scopeType === SCOPE_TYPES.PISO && floorSummary.count > 6;
@@ -42,13 +42,15 @@ export default function ItemScopeSummary({ item, className, hideActivity = false
       </div>
 
       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-        <Badge
-          variant="outline"
-          className="max-w-full gap-1 border-slate-200 bg-white text-[11px] text-slate-600"
-        >
-          <Building2 className="h-3 w-3 shrink-0" />
-          <span className="truncate">{getScopeTypeLabel(scopeType)}</span>
-        </Badge>
+        {scopeType !== SCOPE_TYPES.DEPARTAMENTO && scopeType !== SCOPE_TYPES.PISO && (
+          <Badge
+            variant="outline"
+            className="max-w-full gap-1 border-slate-200 bg-white text-[11px] text-slate-600"
+          >
+            <Building2 className="h-3 w-3 shrink-0" />
+            <span className="truncate">{getScopeTypeLabel(scopeType)}</span>
+          </Badge>
+        )}
 
         <Badge
           variant="secondary"

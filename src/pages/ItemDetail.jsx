@@ -425,9 +425,9 @@ export default function ItemDetail() {
               Grupo Múltiple
             </Badge>
           )}
-          <div className="w-full">
-            <ItemScopeSummary item={item} />
-          </div>
+          <p className="w-full text-xs text-muted-foreground">
+            {item.project} • {item.tower} • {item.activity}
+          </p>
         </div>
 
         <Button
