@@ -252,40 +252,49 @@ export default function Restrictions() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground font-medium">
                   Restricciones Totales
                 </p>
-                <p className="text-2xl font-bold mt-1">{stats.total}</p>
+                <p className="text-2xl font-bold mt-1 text-slate-900">{stats.total}</p>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Interferencias y bloqueos vigentes en faena
+                </p>
               </div>
-              <AlertTriangle className="w-8 h-8 text-slate-300" />
+              <AlertTriangle className="w-8 h-8 text-slate-300 shrink-0" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-sm border-l-4 border-l-red-500">
+        <Card className="border-0 shadow-sm border-l-4 border-l-red-500 bg-red-50/20">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Críticas</p>
+                <p className="text-xs text-red-600 font-semibold">Críticas</p>
                 <p className="text-2xl font-bold text-red-600 mt-1">
                   {stats.criticas}
                 </p>
+                <p className="text-[11px] text-red-700/90 font-medium mt-1">
+                  Frente detenido o avance 0% (bloqueo total)
+                </p>
               </div>
-              <AlertTriangle className="w-8 h-8 text-red-300" />
+              <AlertTriangle className="w-8 h-8 text-red-300 shrink-0" />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-0 shadow-sm border-l-4 border-l-amber-500">
+        <Card className="border-0 shadow-sm border-l-4 border-l-amber-500 bg-amber-50/20">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs text-muted-foreground">Normales</p>
+                <p className="text-xs text-amber-700 font-semibold">Normales</p>
                 <p className="text-2xl font-bold text-amber-600 mt-1">
                   {stats.normales}
                 </p>
+                <p className="text-[11px] text-amber-800/90 font-medium mt-1">
+                  Interferencia operativa pero con avance parcial
+                </p>
               </div>
-              <AlertCircle className="w-8 h-8 text-amber-300" />
+              <AlertCircle className="w-8 h-8 text-amber-300 shrink-0" />
             </div>
           </CardContent>
         </Card>
@@ -347,6 +356,11 @@ export default function Restrictions() {
                             className={`text-xs font-medium border ${getSeverityBadgeColor(
                               restriction.severity
                             )}`}
+                            title={
+                              restriction.severity === 'crítica'
+                                ? 'Crítica: Frente detenido o avance 0% (bloqueo total)'
+                                : 'Normal: Interferencia operativa pero con avance parcial'
+                            }
                           >
                             {restriction.severity === 'crítica'
                               ? 'CRÍTICA'
