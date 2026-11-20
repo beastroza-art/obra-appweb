@@ -678,7 +678,7 @@ export default function DailyLogForm({
               id: p.id,
               url: p.file_url,
               file_url: p.file_url,
-              description: p.description,
+              description: p.description && (p.description.startsWith("[AVANCE]") || p.description.startsWith("[BLOQUEO]")) ? "" : (p.description || ""),
               label: p.label,
               is_uploaded: true,
             }))
@@ -712,7 +712,16 @@ export default function DailyLogForm({
         } = JSON.parse(savedDraft);
         setForm(savedForm);
         setWorkers(savedWorkers);
-        setPhotos(savedPhotos);
+        if (Array.isArray(savedPhotos)) {
+          setPhotos(
+            savedPhotos.map((p) => ({
+              ...p,
+              description: p.description && (p.description.startsWith("[AVANCE]") || p.description.startsWith("[BLOQUEO]")) ? "" : (p.description || ""),
+            }))
+          );
+        } else {
+          setPhotos([]);
+        }
         setSignatureImage(savedSignatureImage);
         if (Array.isArray(savedSelectedFloors)) {
           setSelectedFloors(savedSelectedFloors);
@@ -721,7 +730,16 @@ export default function DailyLogForm({
           setActiveFloor(savedActiveFloor);
         }
         if (savedFloorData && typeof savedFloorData === "object") {
-          setFloorData(savedFloorData);
+          const sanitizedFloorData = { ...savedFloorData };
+          for (const key of Object.keys(sanitizedFloorData)) {
+            if (Array.isArray(sanitizedFloorData[key]?.photos)) {
+              sanitizedFloorData[key].photos = sanitizedFloorData[key].photos.map((p) => ({
+                ...p,
+                description: p.description && (p.description.startsWith("[AVANCE]") || p.description.startsWith("[BLOQUEO]")) ? "" : (p.description || ""),
+              }));
+            }
+          }
+          setFloorData(sanitizedFloorData);
         }
         if (typeof savedApplySignatureToAll === "boolean") {
           setApplySignatureToAll(savedApplySignatureToAll);
@@ -1663,7 +1681,7 @@ export default function DailyLogForm({
               id: photo.id,
               file_url: photo.file_url || photo.url || "",
               url: photo.file_url || photo.url || "",
-              description: photo.description || "",
+              description: photo.description && (photo.description.startsWith("[AVANCE]") || photo.description.startsWith("[BLOQUEO]")) ? "" : (photo.description || ""),
               label: "reporte_diario",
               date: form.date,
               file_name: photo.file_name || "",
@@ -1819,10 +1837,10 @@ export default function DailyLogForm({
           id: photo.id,
           file_url: photo.file_url || photo.url || "",
           url: photo.file_url || photo.url || "",
-          description: photo.description || "",
-          label: "reporte_diario",
-          date: form.date,
-          file_name: photo.file_name || "",
+          description: photo.description && (photo.description.startsWith("[AVANCE]") || photo.description.startsWith("[BLOQUEO]")) ? "" : (photo.description || ""),
+              label: "reporte_diario",
+              date: form.date,
+              file_name: photo.file_name || "",
         })),
       });
 
@@ -2711,9 +2729,7 @@ export default function DailyLogForm({
                       Fotos del reporte {isMultiFloor ? `(${activeFloor})` : ""}{" "}
                       <span className="text-destructive font-bold">*</span>
                     </Label>
-                    <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5 font-medium">
-                      🛡️ Sello legal indeleble
-                    </span>
+                    
                   </div>
 
                   <div className="flex gap-2">
@@ -2784,26 +2800,14 @@ export default function DailyLogForm({
                                 className="h-10 w-10 shrink-0 rounded-md object-cover"
                               />
                               <div className="flex flex-col">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-xs font-semibold">
-                                    Foto {index + 1}
-                                  </span>
-                                  {photo.description?.includes("[BLOQUEO]") && (
-                                    <span className="bg-rose-100 text-rose-700 text-[9px] font-bold px-1.5 py-0.2 rounded border border-rose-300">
-                                      BLOQUEO
-                                    </span>
-                                  )}
-                                  {photo.description?.includes("[AVANCE]") && (
-                                    <span className="bg-emerald-100 text-emerald-700 text-[9px] font-bold px-1.5 py-0.2 rounded border border-emerald-300">
-                                      SELLADA
-                                    </span>
-                                  )}
-                                </div>
-                                <span className="max-w-[220px] truncate text-[10px] text-muted-foreground">
-                                  {photo.description && !photo.description.startsWith("[AVANCE]") && !photo.description.startsWith("[BLOQUEO]")
-                                    ? photo.description
-                                    : "Foto con sello legal"}
+                                <span className="text-xs font-semibold">
+                                  Foto {index + 1}
                                 </span>
+                                {photo.description && !photo.description.startsWith("[AVANCE]") && !photo.description.startsWith("[BLOQUEO]") && (
+                                  <span className="max-w-[220px] truncate text-[10px] text-muted-foreground">
+                                    {photo.description}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </AccordionTrigger>
