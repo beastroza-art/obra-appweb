@@ -34,7 +34,74 @@ function formatRestrictionDate(dateStr) {
   }
 }
 
-function RestrictionLocationDisplay({ project, tower, scopeLabel }) {
+function RestrictionLocationDisplay({
+  project,
+  tower,
+  scopeLabel,
+  isMultiFloor,
+  blockedChildren = [],
+  activeChildren = [],
+}) {
+  if (isMultiFloor && blockedChildren.length > 0) {
+    const visibleActive = activeChildren.slice(0, 3);
+    const remainingActive = activeChildren.length - visibleActive.length;
+
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2 flex-wrap">
+        <span className="font-semibold text-slate-700">{project || '—'}</span>
+        <span>•</span>
+        <span>{tower || '—'}</span>
+        <span>/</span>
+
+        {/* Pisos Bloqueados en rojo */}
+        <span className="font-semibold text-red-600 text-[11px] flex items-center gap-1">
+          🚨 Bloqueados ({blockedChildren.length}):
+        </span>
+        <div className="inline-flex items-center gap-1 flex-wrap">
+          {blockedChildren.map((c) => (
+            <span
+              key={c.id || c.floor}
+              className="rounded bg-red-100 text-red-800 border border-red-300 px-1.5 py-0.5 text-[10px] font-bold leading-none shadow-2xs"
+            >
+              {c.floor}
+            </span>
+          ))}
+        </div>
+
+        {/* Pisos en curso en gris */}
+        {activeChildren.length > 0 && (
+          <>
+            <span className="text-slate-300">|</span>
+            <span className="text-slate-600 text-[11px] font-medium">
+              En curso ({activeChildren.length}):
+            </span>
+            <div
+              className="inline-flex items-center gap-1 flex-wrap"
+              title={activeChildren.map((c) => c.floor).join(', ')}
+            >
+              {visibleActive.map((c) => (
+                <span
+                  key={c.id || c.floor}
+                  className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-foreground/80 border border-slate-200/60"
+                >
+                  {c.floor}
+                </span>
+              ))}
+              {remainingActive > 0 && (
+                <span
+                  className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-foreground/80 border border-slate-200/60"
+                  title={activeChildren.map((c) => c.floor).join(', ')}
+                >
+                  +{remainingActive}
+                </span>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
   const floors = getFloorList(scopeLabel);
   const visibleFloors = floors.slice(0, 4);
   const remainingCount = floors.length - visibleFloors.length;
@@ -99,16 +166,33 @@ export default function Restrictions() {
 
   const activeRestrictions = [];
 
-  // A) Ítems Maestros Principales con restricciones activas (excluyendo terminados)
+  // A) Ítems Maestros Principales con restricciones activas o bloqueos (excluyendo terminados)
   masterItems
     .filter((item) => !item.parent_id)
-    .filter((item) => item.restrictions && item.restrictions.trim())
+    .filter((item) => {
+      const hasRestrictions = item.restrictions && item.restrictions.trim();
+      const isBlocked = item.status === 'bloqueado' || item.status === 'piso bloqueado';
+      // Also check if any child is blocked
+      const hasBlockedChild = masterItems.some((c) => c.parent_id === item.id && c.status === 'bloqueado');
+      return hasRestrictions || isBlocked || hasBlockedChild;
+    })
     .filter((item) => item.status !== 'completado' && !(item.planned_qty > 0 && Number(item.executed_qty) >= Number(item.planned_qty)))
     .filter((item) => userRole === 'admin' || hasAccessToProject(item.project))
     .filter(
       (item) => !selectedProject || selectedProject === 'all' || item.project === selectedProject
     )
     .forEach((item) => {
+      const children = masterItems.filter((i) => i.parent_id === item.id);
+      const blockedChildren = children.filter((c) => c.status === 'bloqueado');
+      const activeChildren = children.filter((c) => c.status !== 'bloqueado');
+
+      const isBlocked =
+        item.status === 'bloqueado' ||
+        item.status === 'piso bloqueado' ||
+        blockedChildren.length > 0;
+
+      const severity = isBlocked ? 'crítica' : 'normal';
+
       activeRestrictions.push({
         id: item.id,
         type: 'item_maestro',
@@ -116,11 +200,14 @@ export default function Restrictions() {
         tower: item.tower,
         scopeLabel: getScopeDisplayLabel(item, true),
         activity: item.activity,
-        description: item.restrictions,
-        // Criterio Ítem Maestro: CRÍTICA si el ítem está formalmente bloqueado, Normal si sigue en ejecución o pendiente
-        severity: item.status === 'bloqueado' ? 'crítica' : 'normal',
+        description: item.restrictions || (blockedChildren.length > 0 ? `${blockedChildren.length} piso(s) detenido(s) por bloqueo` : 'Frente con bloqueo'),
+        severity,
         date: item.updated_date || item.created_date || item.created_at,
         relatedId: item.id,
+        isMultiFloor: children.length > 0,
+        blockedChildren,
+        activeChildren,
+        totalChildrenCount: children.length,
       });
     });
 
@@ -363,7 +450,9 @@ export default function Restrictions() {
                             }
                           >
                             {restriction.severity === 'crítica'
-                              ? 'CRÍTICA'
+                              ? restriction.blockedChildren?.length > 0 && restriction.totalChildrenCount > 0
+                                ? `CRÍTICA (${restriction.blockedChildren.length} de ${restriction.totalChildrenCount} pisos bloqueados)`
+                                : 'CRÍTICA'
                               : 'Normal'}
                           </Badge>
                           <Badge
@@ -387,6 +476,9 @@ export default function Restrictions() {
                           project={restriction.project}
                           tower={restriction.tower}
                           scopeLabel={restriction.scopeLabel}
+                          isMultiFloor={restriction.isMultiFloor}
+                          blockedChildren={restriction.blockedChildren}
+                          activeChildren={restriction.activeChildren}
                         />
 
                         <p className="text-sm leading-relaxed">
