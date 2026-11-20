@@ -8,6 +8,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Link2,
+  Calendar,
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { usePermissions } from '@/lib/PermissionsContext';
@@ -15,6 +16,60 @@ import { useProjectFilter } from '@/lib/ProjectFilterContext';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/lib/api';
 import FilterPill from '@/components/common/FilterPill';
+import { getFloorList } from '@/utils/floors';
+import { getScopeDisplayLabel } from '@/constants/activityScope';
+
+function formatRestrictionDate(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return String(dateStr);
+    return d.toLocaleDateString('es-CL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  } catch {
+    return String(dateStr);
+  }
+}
+
+function RestrictionLocationDisplay({ project, tower, scopeLabel }) {
+  const floors = getFloorList(scopeLabel);
+  const visibleFloors = floors.slice(0, 4);
+  const remainingCount = floors.length - visibleFloors.length;
+
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2 flex-wrap">
+      <span className="font-semibold text-slate-700">{project || '—'}</span>
+      <span>•</span>
+      <span>{tower || '—'}</span>
+      <span>/</span>
+      {floors.length === 0 ? (
+        <span>—</span>
+      ) : (
+        <div className="inline-flex items-center gap-1 flex-wrap" title={floors.join(', ')}>
+          {visibleFloors.map((fl) => (
+            <span
+              key={fl}
+              className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-foreground/80 border border-slate-200/60"
+            >
+              {fl}
+            </span>
+          ))}
+          {remainingCount > 0 && (
+            <span
+              className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium leading-none text-foreground/80 border border-slate-200/60"
+              title={floors.join(', ')}
+            >
+              +{remainingCount}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Restrictions() {
   const navigate = useNavigate();
@@ -42,45 +97,103 @@ export default function Restrictions() {
       ? projects
       : projects.filter((p) => hasAccessToProject(p.name));
 
-  const activeRestrictions = masterItems
+  const activeRestrictions = [];
+
+  // A) Ítems Maestros Principales con restricciones activas (excluyendo terminados)
+  masterItems
     .filter((item) => !item.parent_id)
     .filter((item) => item.restrictions && item.restrictions.trim())
+    .filter((item) => item.status !== 'completado' && !(item.planned_qty > 0 && Number(item.executed_qty) >= Number(item.planned_qty)))
     .filter((item) => userRole === 'admin' || hasAccessToProject(item.project))
     .filter(
       (item) => !selectedProject || selectedProject === 'all' || item.project === selectedProject
     )
-    .map((item) => ({
-      id: item.id,
-      type: 'item_maestro',
-      project: item.project,
-      location: `${item.tower || '—'} / ${item.floor || '—'}`,
-      activity: item.activity,
-      description: item.restrictions,
-      severity: item.status === 'bloqueado' ? 'crítica' : 'normal',
-      date: item.updated_date || item.created_date || item.created_at,
-      relatedId: item.id,
-    }));
+    .forEach((item) => {
+      activeRestrictions.push({
+        id: item.id,
+        type: 'item_maestro',
+        project: item.project,
+        tower: item.tower,
+        scopeLabel: getScopeDisplayLabel(item, true),
+        activity: item.activity,
+        description: item.restrictions,
+        // Criterio Ítem Maestro: CRÍTICA si el ítem está formalmente bloqueado, Normal si sigue en ejecución o pendiente
+        severity: item.status === 'bloqueado' ? 'crítica' : 'normal',
+        date: item.updated_date || item.created_date || item.created_at,
+        relatedId: item.id,
+      });
+    });
 
+  // B) Ítems Hijos con restricciones propias específicas (si no la tiene ya el padre)
+  masterItems
+    .filter((item) => item.parent_id)
+    .filter((item) => item.restrictions && item.restrictions.trim())
+    .filter((item) => item.status !== 'completado' && !(item.planned_qty > 0 && Number(item.executed_qty) >= Number(item.planned_qty)))
+    .filter((item) => userRole === 'admin' || hasAccessToProject(item.project))
+    .filter(
+      (item) => !selectedProject || selectedProject === 'all' || item.project === selectedProject
+    )
+    .forEach((child) => {
+      const parent = masterItems.find((p) => p.id === child.parent_id);
+      if (!parent || !parent.restrictions || parent.restrictions.trim() !== child.restrictions.trim()) {
+        activeRestrictions.push({
+          id: child.id,
+          type: 'item_maestro',
+          project: child.project,
+          tower: child.tower,
+          scopeLabel: child.floor || 'Piso',
+          activity: child.activity,
+          description: child.restrictions,
+          severity: child.status === 'bloqueado' ? 'crítica' : 'normal',
+          date: child.updated_date || child.created_date || child.created_at,
+          relatedId: child.id,
+        });
+      }
+    });
+
+  // C) Reportes Diarios con restricción
   const logRestrictions = dailyLogs
-    .filter((log) => log.has_restriction && log.restriction_detail)
+    .filter((log) => log.has_restriction && log.restriction_detail && log.restriction_detail.trim())
+    .filter((log) => {
+      // Excluir si la actividad asociada ya fue completada al 100%
+      const related = masterItems.find((i) => i.id === log.master_item_id);
+      if (related && (related.status === 'completado' || (related.planned_qty > 0 && Number(related.executed_qty) >= Number(related.planned_qty)))) {
+        return false;
+      }
+      return true;
+    })
     .filter((log) => userRole === 'admin' || hasAccessToProject(log.project))
     .filter(
       (log) => !selectedProject || selectedProject === 'all' || log.project === selectedProject
     )
-    .map((log) => ({
-      id: log.id,
-      type: 'reporte_diario',
-      project: log.project,
-      location: `${log.tower || '—'} / ${log.floor || '—'}`,
-      activity: log.activity,
-      description: log.restriction_detail,
-      severity: 'crítica',
-      date: log.date,
-      relatedId: log.master_item_id,
-    }));
+    .map((log) => {
+      const related = masterItems.find((i) => i.id === log.master_item_id);
+      // Criterio Reporte Diario: CRÍTICA si avance del día fue 0 (paralizado), Normal si hubo avance parcial con dificultad
+      const isCritical =
+        Boolean(log.is_zero_progress) ||
+        Number(log.executed_today) === 0 ||
+        log.log_type === 'bloqueo';
+
+      const scopeLabel = related
+        ? getScopeDisplayLabel(related, true)
+        : (log.floor || '—');
+
+      return {
+        id: log.id,
+        type: 'reporte_diario',
+        project: log.project,
+        tower: log.tower || related?.tower,
+        scopeLabel,
+        activity: log.activity,
+        description: log.restriction_detail,
+        severity: isCritical ? 'crítica' : 'normal',
+        date: log.date || log.created_at,
+        relatedId: log.master_item_id,
+      };
+    });
 
   const allRestrictionsBase = [...activeRestrictions, ...logRestrictions].sort(
-    (a, b) => new Date(b.date) - new Date(a.date)
+    (a, b) => new Date(b.date || 0) - new Date(a.date || 0)
   );
 
   const uniqueActivities = Array.from(
@@ -220,12 +333,12 @@ export default function Restrictions() {
                   )}`}
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                    <div className="flex items-start gap-3 flex-1">
-                      <div className="mt-0.5 text-red-500">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className="mt-0.5 text-red-500 shrink-0">
                         {getSeverityIcon(restriction.severity)}
                       </div>
 
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
                           <p className="font-semibold text-sm">
                             {restriction.activity}
@@ -247,11 +360,20 @@ export default function Restrictions() {
                               ? 'Ítem Maestro'
                               : 'Reporte Diario'}
                           </Badge>
+
+                          {restriction.date && (
+                            <span className="text-[11px] font-mono text-muted-foreground ml-auto flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {formatRestrictionDate(restriction.date)}
+                            </span>
+                          )}
                         </div>
 
-                        <p className="text-xs text-muted-foreground mb-2">
-                          {restriction.project} • {restriction.location}
-                        </p>
+                        <RestrictionLocationDisplay
+                          project={restriction.project}
+                          tower={restriction.tower}
+                          scopeLabel={restriction.scopeLabel}
+                        />
 
                         <p className="text-sm leading-relaxed">
                           {restriction.description}
