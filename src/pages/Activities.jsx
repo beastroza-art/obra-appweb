@@ -46,10 +46,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/lib/PermissionsContext";
 import { Navigate } from "react-router-dom";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { CATEGORY_META, DEFAULT_CATEGORIES } from "@/constants/defaultActivities";
 
 export default function Activities() {
-  const { isAdmin } = usePermissions();
+  const { isAdmin, isLoading: isPermissionsLoading } = usePermissions();
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState("");
@@ -63,6 +64,15 @@ export default function Activities() {
   const [formError, setFormError] = useState("");
 
   const [activityToDelete, setActivityToDelete] = useState(null);
+
+  if (isPermissionsLoading) {
+    return (
+      <div className="p-6 space-y-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
 
   if (!isAdmin) return <Navigate to="/" replace />;
 
@@ -670,9 +680,9 @@ export default function Activities() {
               </Button>
               <Button
                 type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending || !formData.name?.trim() || !formData.type}
+                disabled={createMutation.isPending || updateMutation.isPending || !formName.trim() || !formCategory}
                 className={cn(
-                  (createMutation.isPending || updateMutation.isPending || !formData.name?.trim() || !formData.type) &&
+                  (createMutation.isPending || updateMutation.isPending || !formName.trim() || !formCategory) &&
                     "opacity-50 cursor-not-allowed"
                 )}
               >
