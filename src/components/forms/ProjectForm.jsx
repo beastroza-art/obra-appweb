@@ -29,7 +29,6 @@ import {
   X,
   AlertTriangle,
   HardHat,
-  MapPin,
   Copy,
   CheckCheck,
 } from "lucide-react";
@@ -796,8 +795,8 @@ export default function ProjectForm({
         <DialogHeader className="border-b border-slate-200/80 bg-slate-50/70 px-6 sm:px-8 py-3.5 shrink-0">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-orange-500 text-white flex items-center justify-center shadow-xs shrink-0">
-                <Building2 className="w-5 h-5 text-white" />
+              <div className="w-9 h-9 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-600 flex items-center justify-center shrink-0">
+                <Building2 className="w-4.5 h-4.5" />
               </div>
               <div>
                 <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
@@ -872,11 +871,14 @@ export default function ProjectForm({
         <div className="flex-1 overflow-y-auto px-6 sm:px-8 py-4 scrollbar-thin">
           {/* ===================== PASO 1: ANTECEDENTES ===================== */}
           {step === 1 && (
-            <div className="space-y-4 max-w-3xl mx-auto">
-              {/* Tarjeta 1: Identificación y Mandante */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-4.5 space-y-3.5 shadow-2xs">
-                <div className="pb-1 border-b border-slate-100">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+            <div className="space-y-6 max-w-3xl mx-auto py-1">
+              {/* Sección 1: Identificación y Mandante */}
+              <div className="space-y-3.5">
+                <div className="flex items-center gap-2.5 pb-2 border-b border-slate-200">
+                  <span className="w-5 h-5 rounded-md bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-bold font-mono flex items-center justify-center shrink-0">
+                    01
+                  </span>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
                     Identificación del Proyecto y Mandante
                   </h3>
                 </div>
@@ -884,49 +886,49 @@ export default function ProjectForm({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
                     <Label className="text-xs font-semibold text-slate-700 block mb-1">
-                      Nombre de la Obra <span className="text-orange-500">*</span>
+                      Nombre de la Obra <span className="text-orange-500 font-bold">*</span>
                     </Label>
                     <Input
                       value={form.name}
                       onChange={(e) => updateFormField("name", e.target.value)}
-                      placeholder="Ej: Edificio Parque Central"
-                      className="h-10 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium"
+                      placeholder="Edificio Parque Central"
+                      className="h-10 text-xs sm:text-sm rounded-lg bg-white border-slate-300 hover:border-slate-400 focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 font-medium transition-all"
                     />
                   </div>
 
                   <div>
                     <Label className="text-xs font-semibold text-slate-700 block mb-1">
-                      Cliente / Constructora Mandante <span className="text-orange-500">*</span>
+                      Cliente / Constructora Mandante <span className="text-orange-500 font-bold">*</span>
                     </Label>
                     <Input
                       value={form.client}
                       onChange={(e) => updateFormField("client", e.target.value)}
-                      placeholder="Ej: Constructora Besalco"
-                      className="h-10 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium"
+                      placeholder="Constructora Besalco"
+                      className="h-10 text-xs sm:text-sm rounded-lg bg-white border-slate-300 hover:border-slate-400 focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 font-medium transition-all"
                     />
                   </div>
                 </div>
 
                 <div>
                   <Label className="text-xs font-semibold text-slate-700 block mb-1">
-                    Ubicación / Dirección de la Faena <span className="text-orange-500">*</span>
+                    Ubicación / Dirección de la Faena <span className="text-orange-500 font-bold">*</span>
                   </Label>
-                  <div className="relative">
-                    <Input
-                      value={form.address}
-                      onChange={(e) => updateFormField("address", e.target.value)}
-                      placeholder="Ej: Av. Las Condes 12345, Santiago"
-                      className="h-10 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 pl-8.5 font-medium"
-                    />
-                    <MapPin className="h-4 w-4 text-slate-400 absolute left-2.5 top-3 pointer-events-none" />
-                  </div>
+                  <Input
+                    value={form.address}
+                    onChange={(e) => updateFormField("address", e.target.value)}
+                    placeholder="Av. Las Condes 12345, Santiago"
+                    className="h-10 text-xs sm:text-sm rounded-lg bg-white border-slate-300 hover:border-slate-400 focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 font-medium transition-all"
+                  />
                 </div>
               </div>
 
-              {/* Tarjeta 2: Equipo Responsable */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-4.5 space-y-3.5 shadow-2xs">
-                <div className="pb-1 border-b border-slate-100">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+              {/* Sección 2: Equipo Responsable */}
+              <div className="space-y-3.5 pt-1">
+                <div className="flex items-center gap-2.5 pb-2 border-b border-slate-200">
+                  <span className="w-5 h-5 rounded-md bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-bold font-mono flex items-center justify-center shrink-0">
+                    02
+                  </span>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
                     Equipo Responsable a Cargo
                   </h3>
                 </div>
@@ -934,13 +936,13 @@ export default function ProjectForm({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
                     <Label className="text-xs font-semibold text-slate-700 block mb-1">
-                      Supervisor Responsable <span className="text-orange-500">*</span>
+                      Supervisor Responsable <span className="text-orange-500 font-bold">*</span>
                     </Label>
                     <Select
                       value={form.supervisor}
                       onValueChange={(v) => updateFormField("supervisor", v)}
                     >
-                      <SelectTrigger className="h-10 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium">
+                      <SelectTrigger className="h-10 text-xs sm:text-sm rounded-lg bg-white border-slate-300 hover:border-slate-400 focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 font-medium transition-all">
                         <SelectValue placeholder="Seleccionar supervisor" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl border-slate-200 shadow-xl">
@@ -968,13 +970,13 @@ export default function ProjectForm({
 
                   <div>
                     <Label className="text-xs font-semibold text-slate-700 block mb-1">
-                      Capataz Responsable <span className="text-orange-500">*</span>
+                      Capataz Responsable <span className="text-orange-500 font-bold">*</span>
                     </Label>
                     <Select
                       value={form.capataz}
                       onValueChange={(v) => updateFormField("capataz", v)}
                     >
-                      <SelectTrigger className="h-10 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium">
+                      <SelectTrigger className="h-10 text-xs sm:text-sm rounded-lg bg-white border-slate-300 hover:border-slate-400 focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 font-medium transition-all">
                         <SelectValue placeholder="Seleccionar capataz" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl border-slate-200 shadow-xl">
@@ -998,10 +1000,13 @@ export default function ProjectForm({
                 </div>
               </div>
 
-              {/* Tarjeta 3: Plazos Contractuales y Torres */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-4.5 space-y-3.5 shadow-2xs">
-                <div className="pb-1 border-b border-slate-100">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+              {/* Sección 3: Plazos Contractuales y Torres */}
+              <div className="space-y-3.5 pt-1">
+                <div className="flex items-center gap-2.5 pb-2 border-b border-slate-200">
+                  <span className="w-5 h-5 rounded-md bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-bold font-mono flex items-center justify-center shrink-0">
+                    03
+                  </span>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
                     Plazos y Alcance General
                   </h3>
                 </div>
@@ -1009,37 +1014,37 @@ export default function ProjectForm({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                   <div>
                     <Label className="text-xs font-semibold text-slate-700 block mb-1">
-                      Fecha de Inicio <span className="text-orange-500">*</span>
+                      Fecha de Inicio <span className="text-orange-500 font-bold">*</span>
                     </Label>
                     <Input
                       type="date"
                       value={form.start_date}
                       onChange={(e) => updateFormField("start_date", e.target.value)}
-                      className="h-10 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium"
+                      className="h-10 text-xs sm:text-sm rounded-lg bg-white border-slate-300 hover:border-slate-400 focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 font-medium transition-all"
                     />
                   </div>
 
                   <div>
                     <Label className="text-xs font-semibold text-slate-700 block mb-1">
-                      Término Estimado <span className="text-orange-500">*</span>
+                      Término Estimado <span className="text-orange-500 font-bold">*</span>
                     </Label>
                     <Input
                       type="date"
                       value={form.end_date}
                       onChange={(e) => updateFormField("end_date", e.target.value)}
-                      className="h-10 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium"
+                      className="h-10 text-xs sm:text-sm rounded-lg bg-white border-slate-300 hover:border-slate-400 focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 font-medium transition-all"
                     />
                   </div>
 
                   <div>
                     <Label className="text-xs font-semibold text-slate-700 block mb-1">
-                      Cantidad de Torres <span className="text-orange-500">*</span>
+                      Cantidad de Torres <span className="text-orange-500 font-bold">*</span>
                     </Label>
                     <Select
                       value={String(form.tower_count || 1)}
                       onValueChange={(val) => updateFormField("tower_count", val)}
                     >
-                      <SelectTrigger className="h-10 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium">
+                      <SelectTrigger className="h-10 text-xs sm:text-sm rounded-lg bg-white border-slate-300 hover:border-slate-400 focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 font-medium transition-all">
                         <SelectValue placeholder="Torres" />
                       </SelectTrigger>
                       <SelectContent className="rounded-xl border-slate-200 shadow-xl">
@@ -1055,13 +1060,13 @@ export default function ProjectForm({
 
                 <div>
                   <Label className="text-xs font-semibold text-slate-700 block mb-1">
-                    Descripción o Alcance de la Obra <span className="text-orange-500">*</span>
+                    Descripción o Alcance de la Obra <span className="text-orange-500 font-bold">*</span>
                   </Label>
                   <Input
                     value={form.description}
                     onChange={(e) => updateFormField("description", e.target.value)}
-                    placeholder="Ej: Instalaciones eléctricas en losa, tabiquería, salas técnicas y corrientes débiles"
-                    className="h-10 text-xs sm:text-sm rounded-xl bg-slate-50/70 border-slate-200 focus:bg-white focus:border-orange-500 font-medium"
+                    placeholder="Instalaciones eléctricas en losa, tabiquería, salas técnicas y corrientes débiles"
+                    className="h-10 text-xs sm:text-sm rounded-lg bg-white border-slate-300 hover:border-slate-400 focus:bg-white focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 font-medium transition-all"
                   />
                 </div>
               </div>

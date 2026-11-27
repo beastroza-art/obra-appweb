@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 
 import MasterPlanTable from '../components/master-plan/MasterPlanTable';
 import MasterItemForm from '../components/forms/MasterItemForm';
+import MasterPlanImportModal from '../components/master-plan/MasterPlanImportModal';
 import DailyLogForm from '../components/forms/DailyLogForm';
 import FloatingReportButton from "../components/common/FloatingReportButton";
 import FilterBar from '../components/dashboard/FilterBar';
@@ -16,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { itemHasFloor } from '@/utils/floors';
+import { downloadMasterPlanTemplate } from '@/utils/masterPlanTemplate';
 
 export default function MasterPlan() {
   const { user } = useAuth();
@@ -80,6 +82,7 @@ export default function MasterPlan() {
   const [editItem, setEditItem] = useState(null);
   const [dailyLogItem, setDailyLogItem] = useState(null);
   const [editDailyLogData, setEditDailyLogData] = useState(null);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const { data: projects = [] } = useQuery({
     queryKey: ['projects'],
@@ -89,6 +92,19 @@ export default function MasterPlan() {
   const { data: masterItems = [], isLoading } = useQuery({
     queryKey: ['masterItems'],
     queryFn: () => api.get('/master-items'),
+  });
+
+  const { data: dbActivities = [] } = useQuery({
+    queryKey: ['activities'],
+    queryFn: () => api.get('/activities'),
+  });
+
+  const { data: dbWorkers = [] } = useQuery({
+    queryKey: ['projectWorkers', filters.project],
+    queryFn: () =>
+      filters.project
+        ? api.get(`/project-workers?project=${encodeURIComponent(filters.project)}`)
+        : api.get('/project-workers'),
   });
 
   const { data: dailyLogs = [] } = useQuery({
@@ -423,6 +439,21 @@ export default function MasterPlan() {
     setEditItem(null);
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      await downloadMasterPlanTemplate({
+        projectName: filters.project,
+        projects,
+        activities: dbActivities,
+        workers: dbWorkers,
+        existingItems: masterItems,
+      });
+    } catch (err) {
+      console.error("Error al descargar plantilla:", err);
+      alert("No se pudo generar la plantilla Excel: " + err.message);
+    }
+  };
+
   const handleOpenNewProject = () => {
     setEditProject(null);
     setShowProjectForm(true);
@@ -518,6 +549,8 @@ export default function MasterPlan() {
         pdfMasterItems={pdfMasterItems}
         pdfDailyLogs={pdfDailyLogs}
         pdfSitePhotos={pdfSitePhotos}
+        onDownloadTemplate={handleDownloadTemplate}
+        onImportExcel={() => setShowImportModal(true)}
       />
 
       <OperationalStatusBar
@@ -596,6 +629,18 @@ export default function MasterPlan() {
         onSave={handleSaveItem}
         editItem={editItem}
         projects={projects}
+      />
+
+      <MasterPlanImportModal
+        open={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        projectName={filters.project}
+        existingItems={masterItems}
+        workers={dbWorkers}
+        onDownloadTemplate={handleDownloadTemplate}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['masterItems'] });
+        }}
       />
 
       <DailyLogForm

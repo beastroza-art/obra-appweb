@@ -20,6 +20,7 @@ import {
   Search,
   Plus,
   Download,
+  Upload,
   FileSpreadsheet,
   Pencil,
   ChevronDown,
@@ -84,6 +85,8 @@ export default function FilterBar({
   onRefresh,
   userName = "",
   showPdfExport = true,
+  onDownloadTemplate,
+  onImportExcel,
 }) {
   const { canCreateProjects, isAdmin } = usePermissions();
   const { setSelectedProject } = useProjectFilter();
@@ -436,6 +439,32 @@ export default function FilterBar({
             <FileSpreadsheet className="h-3 w-3" />
             Exportar Excel
           </Button>
+
+          {onDownloadTemplate && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 text-xs text-slate-700 hover:text-primary"
+              onClick={onDownloadTemplate}
+              title="Descargar plantilla Excel personalizada para esta obra"
+            >
+              <Download className="h-3 w-3" />
+              Plantilla Excel
+            </Button>
+          )}
+
+          {onImportExcel && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 text-xs text-primary border-primary/30 hover:bg-primary/5 font-semibold"
+              onClick={onImportExcel}
+              title="Importar partidas desde Excel al Plan Maestro"
+            >
+              <Upload className="h-3 w-3" />
+              Importar Excel
+            </Button>
+          )}
         </div>
       </div>
 

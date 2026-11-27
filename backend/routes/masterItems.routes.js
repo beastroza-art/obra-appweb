@@ -1154,9 +1154,10 @@ router.post("/bulk", (req, res) => {
           restrictions,
           observations,
           status,
-          release_status
+          release_status,
+          zone_type
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
 
       const stmt = db.prepare(sql, (prepareErr) => {
@@ -1187,6 +1188,7 @@ router.post("/bulk", (req, res) => {
           const observationsVal = String(item.observations || "").trim();
           const statusVal = String(item.status || "pendiente").trim();
           const releaseStatusVal = String(item.release_status || "no_liberado").trim();
+          const zoneTypeVal = String(item.zone_type || "torre").trim();
 
           stmt.run(
             [
@@ -1207,7 +1209,8 @@ router.post("/bulk", (req, res) => {
               restrictionsVal,
               observationsVal,
               statusVal,
-              releaseStatusVal
+              releaseStatusVal,
+              zoneTypeVal
             ],
             (runErr) => {
               if (runErr) {
